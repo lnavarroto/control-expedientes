@@ -3,8 +3,8 @@ import { initAuthManager, authManager } from "./auth/authManager.js";
 import { initLoginPage } from "./modules/auth/loginPage.js";
 import { showToast } from "./components/toast.js";
 
-// URL del backend - Google Apps Script
-const BACKEND_URL = "https://script.google.com/macros/s/AKfycbwrFNxpklDaeqa4HSyRwaRbjSoWvJH_n0FacXR_JMr0jiGj_eGH_fnGLMCNBi6t_UpL/exec";
+// URL del Cloudflare Worker (Proxy sin CORS) - PRODUCCIÓN ✅
+const BACKEND_URL = "https://proxy-apps-script.ln142843.workers.dev";
 
 document.addEventListener("DOMContentLoaded", async () => {
   // Inicializar gestor de autenticación
