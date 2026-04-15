@@ -16,20 +16,40 @@ import {
 } from "./expedientesMapeo.js";
 
 /**
- * Renderizar tabla de expedientes del backend
+ * Renderizar tabla de expedientes del backend con paginación
  */
-function renderTablaExpedientes(expedientes, onAction) {
+function renderTablaExpedientes(expedientes, paginaActual = 1, itemsPorPagina = 10) {
   if (!expedientes || expedientes.length === 0) {
-    return `
-      <div class="card-surface p-8 text-center">
-        <p class="text-slate-500 font-medium mb-2">📭 No hay expedientes registrados</p>
-        <p class="text-xs text-slate-400">Los expedientes aparecerán aquí cuando se registren nuevos</p>
-      </div>
-    `;
+    return {
+      html: `
+        <div class="card-surface p-8 text-center">
+          <p class="text-slate-500 font-medium mb-2">📭 No hay expedientes registrados</p>
+          <p class="text-xs text-slate-400">Los expedientes aparecerán aquí cuando se registren nuevos</p>
+        </div>
+      `,
+      totalPaginas: 0,
+      paginaActual: 0
+    };
   }
 
-  const filas = expedientes.map((exp, index) => {
+  // 🔄 ORDENAR DEL ÚLTIMO AL PRIMERO (descendente)
+  const expedientesOrdenados = [...expedientes].sort((a, b) => {
+    const fechaA = new Date(a.fecha_ingreso || 0);
+    const fechaB = new Date(b.fecha_ingreso || 0);
+    return fechaB - fechaA; // Descendente (más reciente primero)
+  });
+
+  // Calcular paginación
+  const totalPaginas = Math.ceil(expedientesOrdenados.length / itemsPorPagina);
+  const paginaValida = Math.min(Math.max(1, paginaActual), totalPaginas);
+  const inicio = (paginaValida - 1) * itemsPorPagina;
+  const fin = inicio + itemsPorPagina;
+  const expedientesPagina = expedientesOrdenados.slice(inicio, fin);
+
+  // Renderizar filas
+  const filas = expedientesPagina.map((exp, indexEnPagina) => {
     const formateado = formatearExpediente(exp);
+    const numeroGlobal = inicio + indexEnPagina + 1;
     const estadoHtml = `
       <span class="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold 
         bg-${formateado.estadoColor}-100 text-${formateado.estadoColor}-700">
@@ -39,7 +59,7 @@ function renderTablaExpedientes(expedientes, onAction) {
 
     return `
       <tr class="hover:bg-slate-50 transition-colors" data-numero="${formateado.numero}">
-        <td class="px-4 py-3 border-t border-slate-100"><span class="font-bold text-slate-600">#${index + 1}</span></td>
+        <td class="px-4 py-3 border-t border-slate-100"><span class="font-bold text-slate-600">#${numeroGlobal}</span></td>
         <td class="px-4 py-3 border-t border-slate-100"><span class="font-mono font-bold text-blue-700">${formateado.numero}</span></td>
         <td class="px-4 py-3 border-t border-slate-100 text-sm">${formateado.materia}</td>
         <td class="px-4 py-3 border-t border-slate-100 text-sm">${formateado.juzgado}</td>
@@ -54,7 +74,7 @@ function renderTablaExpedientes(expedientes, onAction) {
     `;
   }).join("");
 
-  return `
+  const html = `
     <div class="card-surface overflow-hidden">
       <div class="overflow-x-auto">
         <table class="w-full text-sm">
@@ -75,6 +95,98 @@ function renderTablaExpedientes(expedientes, onAction) {
             ${filas}
           </tbody>
         </table>
+      </div>
+    </div>
+  `;
+
+  return {
+    html,
+    totalPaginas,
+    paginaActual: paginaValida,
+    expedientesMostrados: expedientesPagina.length,
+    expedientesTotal: expedientesOrdenados.length
+  };
+}
+
+/**
+ * Renderizar controles de paginación con buen diseño
+ */
+function renderPaginacion(paginaActual, totalPaginas) {
+  if (totalPaginas <= 1) return "";
+
+  const generarBotonesPagina = () => {
+    const botones = [];
+    const ventana = 3; // Mostrar botones alrededor de la página actual
+
+    const inicio = Math.max(1, paginaActual - ventana);
+    const fin = Math.min(totalPaginas, paginaActual + ventana);
+
+    if (inicio > 1) {
+      botones.push(`
+        <button class="btn-pagina" data-pagina="1" title="Primera página">
+          <span class="font-bold">«</span>
+        </button>
+      `);
+      if (inicio > 2) {
+        botones.push(`<span class="text-slate-400 px-2">...</span>`);
+      }
+    }
+
+    for (let i = inicio; i <= fin; i++) {
+      const esActual = i === paginaActual;
+      botones.push(`
+        <button class="btn-pagina ${esActual ? 'activo' : ''}" data-pagina="${i}" ${esActual ? 'disabled' : ''}>
+          ${i}
+        </button>
+      `);
+    }
+
+    if (fin < totalPaginas) {
+      if (fin < totalPaginas - 1) {
+        botones.push(`<span class="text-slate-400 px-2">...</span>`);
+      }
+      botones.push(`
+        <button class="btn-pagina" data-pagina="${totalPaginas}" title="Última página">
+          <span class="font-bold">»</span>
+        </button>
+      `);
+    }
+
+    return botones.join("");
+  };
+
+  return `
+    <div class="card-surface p-4 mt-6">
+      <div class="flex flex-col md:flex-row items-center justify-between gap-4">
+        <div class="text-sm text-slate-600 font-semibold">
+          Página <span class="text-blue-600 font-bold">${paginaActual}</span> de <span class="text-blue-600 font-bold">${totalPaginas}</span>
+        </div>
+        
+        <div class="flex items-center gap-2 flex-wrap justify-center">
+          <button class="btn-primera-pagina btn-nav-paginacion text-xs" ${paginaActual === 1 ? 'disabled' : ''} title="Primera página">
+            ⏮ Primera
+          </button>
+          
+          <button class="btn-pagina-anterior btn-nav-paginacion text-xs" ${paginaActual === 1 ? 'disabled' : ''} title="Página anterior">
+            ◀ Anterior
+          </button>
+          
+          <div class="flex items-center gap-1 px-3 py-2 bg-slate-50 rounded-lg border border-slate-200 flex-wrap justify-center">
+            ${generarBotonesPagina()}
+          </div>
+          
+          <button class="btn-pagina-siguiente btn-nav-paginacion text-xs" ${paginaActual === totalPaginas ? 'disabled' : ''} title="Página siguiente">
+            Siguiente ▶
+          </button>
+          
+          <button class="btn-ultima-pagina btn-nav-paginacion text-xs" ${paginaActual === totalPaginas ? 'disabled' : ''} title="Última página">
+            Última ⏭
+          </button>
+        </div>
+
+        <div class="text-xs text-slate-500">
+          Mostrando <span class="font-bold text-slate-700">10</span> expedientes por página
+        </div>
       </div>
     </div>
   `;
@@ -233,24 +345,33 @@ export async function initListadoPage({ mountNode }) {
  */
 function renderListadoExpedientes(expedientes, mountNode) {
   let expedientesFiltrados = [...expedientes];
+  let paginaActual = 1;
+  const itemsPorPagina = 10;
 
-  const renderHTML = () => `
-    <section>
-      <div class="flex items-center justify-between mb-4">
-        <div>
-          <h2 class="text-xl font-bold text-slate-900">📋 Expedientes Registrados</h2>
-          <p class="text-sm text-slate-600 mt-1">Total: <span class="font-bold">${expedientesFiltrados.length}</span> de <span class="font-bold">${expedientes.length}</span></p>
+  const renderHTML = () => {
+    const resultado = renderTablaExpedientes(expedientesFiltrados, paginaActual, itemsPorPagina);
+    const totalPaginas = resultado.totalPaginas;
+    
+    return `
+      <section>
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h2 class="text-xl font-bold text-slate-900">📋 Expedientes Registrados</h2>
+            <p class="text-sm text-slate-600 mt-1">Total: <span class="font-bold">${expedientesFiltrados.length}</span> de <span class="font-bold">${expedientes.length}</span></p>
+          </div>
+          <button id="btn-recargar" class="btn btn-secondary">🔄 Recargar</button>
         </div>
-        <button id="btn-recargar" class="btn btn-secondary">🔄 Recargar</button>
-      </div>
 
-      ${renderPanelFiltradores(expedientes)}
+        ${renderPanelFiltradores(expedientes)}
 
-      <div class="mt-4">
-        ${renderTablaExpedientes(expedientesFiltrados)}
-      </div>
-    </section>
-  `;
+        <div class="mt-4">
+          ${resultado.html}
+        </div>
+
+        ${renderPaginacion(paginaActual, totalPaginas)}
+      </section>
+    `;
+  };
 
   /**
    * Abrir modal para editar expediente
@@ -408,6 +529,7 @@ function renderListadoExpedientes(expedientes, mountNode) {
    * Configurar event listeners
    */
   function setupEventListeners() {
+    // Event listeners para botones de ver detalles
     document.querySelectorAll(".btn-ver-detalles").forEach(btn => {
       btn.addEventListener("click", () => {
         const numero = btn.getAttribute("data-numero");
@@ -420,11 +542,65 @@ function renderListadoExpedientes(expedientes, mountNode) {
       });
     });
 
+    // Boton recargar
     document.getElementById("btn-recargar")?.addEventListener("click", async () => {
       showToast("🔄 Recargando expedientes...", "info");
+      paginaActual = 1;
       await initListadoPage({ mountNode });
     });
 
+    // ⚡ LISTENERS DE PAGINACIÓN
+    // Botones de número de página
+    document.querySelectorAll(".btn-pagina").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const nuevaPagina = parseInt(btn.getAttribute("data-pagina"), 10);
+        paginaActual = nuevaPagina;
+        mountNode.innerHTML = renderHTML();
+        setupEventListeners();
+        // Scroll al inicio de la tabla
+        document.querySelector(".card-surface")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+    });
+
+    // Botón primera página
+    document.querySelector(".btn-primera-pagina")?.addEventListener("click", () => {
+      paginaActual = 1;
+      mountNode.innerHTML = renderHTML();
+      setupEventListeners();
+      document.querySelector(".card-surface")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+
+    // Botón página anterior
+    document.querySelector(".btn-pagina-anterior")?.addEventListener("click", () => {
+      if (paginaActual > 1) {
+        paginaActual--;
+        mountNode.innerHTML = renderHTML();
+        setupEventListeners();
+        document.querySelector(".card-surface")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    });
+
+    // Botón página siguiente
+    document.querySelector(".btn-pagina-siguiente")?.addEventListener("click", () => {
+      const totalPaginas = Math.ceil(expedientesFiltrados.length / itemsPorPagina);
+      if (paginaActual < totalPaginas) {
+        paginaActual++;
+        mountNode.innerHTML = renderHTML();
+        setupEventListeners();
+        document.querySelector(".card-surface")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    });
+
+    // Botón última página
+    document.querySelector(".btn-ultima-pagina")?.addEventListener("click", () => {
+      const totalPaginas = Math.ceil(expedientesFiltrados.length / itemsPorPagina);
+      paginaActual = totalPaginas;
+      mountNode.innerHTML = renderHTML();
+      setupEventListeners();
+      document.querySelector(".card-surface")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+
+    // Filtrar expedientes
     document.getElementById("btn-filtrar")?.addEventListener("click", () => {
       const filtroMateria = document.getElementById("filtro-materia")?.value || "";
       const filtroJuzgado = document.getElementById("filtro-juzgado")?.value || "";
@@ -444,17 +620,20 @@ function renderListadoExpedientes(expedientes, mountNode) {
         ? "Sin resultados" 
         : `${expedientesFiltrados.length} expediente${expedientesFiltrados.length !== 1 ? 's' : ''}`;
       
+      paginaActual = 1; // Resetear a primera página al filtrar
       showToast(`🔍 ${resultsText}`, "info");
       mountNode.innerHTML = renderHTML();
       setupEventListeners();
     });
 
+    // Limpiar filtros
     document.getElementById("btn-limpiar-filtros")?.addEventListener("click", () => {
       document.getElementById("filtro-materia").value = "";
       document.getElementById("filtro-juzgado").value = "";
       document.getElementById("filtro-estado").value = "";
       document.getElementById("filtro-texto").value = "";
       expedientesFiltrados = [...expedientes];
+      paginaActual = 1; // Resetear a primera página
       showToast("🧹 Filtros limpios", "info");
       mountNode.innerHTML = renderHTML();
       setupEventListeners();

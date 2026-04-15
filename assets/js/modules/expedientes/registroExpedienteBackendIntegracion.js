@@ -210,94 +210,56 @@ export async function guardarExpedienteAlBackendConConfirmacion(
     return;
   }
 
-  // Modal de confirmación
-  return new Promise(resolve => {
-    const tipoIngresoIcon = modoLectora ? "📱" : "🖱️";
-    const tipoIngresoTexto = modoLectora ? "Lectora (Escáner)" : "Manual (Teclado)";
+  // Registrar DIRECTAMENTE sin modal de confirmación
+  try {
+    // Obtener referencia al botón guardar real si existe
+    const btnOriginal = document.getElementById("btn-guardar") || btnGuardar;
 
-    const modal = document.createElement("div");
-    modal.className = "fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4";
-    modal.innerHTML = `
-      <div class="bg-white rounded-lg shadow-lg max-w-md w-full p-6 space-y-4">
-        <h3 class="text-lg font-bold text-slate-900">Confirmar Registro</h3>
+    // Enviar al backend
+    const resultado = await enviarExpedienteAlBackend(payload, btnOriginal);
 
-        <div class="bg-blue-50 border border-blue-200 rounded p-3 space-y-2 text-sm text-slate-700">
-          <p><strong>Expediente:</strong> ${payload.numero_expediente}-${payload.anio}</p>
-          <p><strong>Juzgado:</strong> ${payload.juzgado_texto}</p>
-          <p><strong>Materia:</strong> ${payload.codigo_materia}</p>
-          <p><strong>Registrado por:</strong> ${payload.nombres_usuario} ${payload.apellidos_usuario}</p>
-          <p class="pt-2 border-t border-blue-200"><strong>Origen:</strong> ${tipoIngresoIcon} ${tipoIngresoTexto}</p>
-        </div>
+    if (resultado.success) {
+      // Guardar también localmente para historial
+      expedienteService.guardar({
+        id: `EXP-${Date.now()}`,
+        numeroExpediente: payload.numero_expediente,
+        anio: payload.anio,
+        incidente: payload.incidente,
+        codigoCorte: payload.codigo_corte,
+        materia: payload.codigo_materia,
+        juzgado: payload.juzgado_texto,
+        fechaIngreso: payload.fecha_ingreso,
+        horaIngreso: payload.hora_ingreso,
+        estado: "Ingresado",
+        ubicacionActual: "Archivo",
+        observaciones: payload.observaciones
+      });
 
-        <div class="flex gap-2 justify-end">
-          <button class="px-4 py-2 rounded border border-slate-300 text-slate-700 hover:bg-slate-50" onclick="this.closest('.fixed').remove()">
-            Cancelar
-          </button>
-          <button class="px-4 py-2 rounded bg-blue-500 text-white hover:bg-blue-600 font-semibold" id="btn-confirmar-registro">
-            ✅ Registrar
-          </button>
-        </div>
-      </div>
-    `;
-
-    document.body.appendChild(modal);
-
-    document.getElementById("btn-confirmar-registro").addEventListener("click", async () => {
-      // Obtener referencia al botón guardar real si existe
-      const btnOriginal = document.getElementById("btn-guardar");
-
-      // Enviar al backend
-      const resultado = await enviarExpedienteAlBackend(payload, btnOriginal);
-
-      modal.remove();
-
-      if (resultado.success) {
-        // Guardar también localmente para historial
-        expedienteService.guardar({
-          id: `EXP-${Date.now()}`,
-          numeroExpediente: payload.numero_expediente,
-          anio: payload.anio,
-          incidente: payload.incidente,
-          codigoCorte: payload.codigo_corte,
-          materia: payload.codigo_materia,
-          juzgado: payload.juzgado_texto,
-          fechaIngreso: payload.fecha_ingreso,
-          horaIngreso: payload.hora_ingreso,
-          estado: "Ingresado",
-          ubicacionActual: "Archivo",
-          observaciones: payload.observaciones
-        });
-
-        // Reiniciar formulario si fue manual
-        if (!modoLectora) {
-          setTimeout(() => {
-            if (mountNode) {
-              location.reload(); // Recargar para sincronizar con backend
-            }
-          }, 1000);
-        } else {
-          // Si fue lectora, limpiar solo el input
-          const numeroInput = document.getElementById("numero-expediente-lectora");
-          if (numeroInput) {
-            numeroInput.value = "";
-            numeroInput.focus();
+      // Reiniciar formulario si fue manual
+      if (!modoLectora) {
+        setTimeout(() => {
+          if (mountNode) {
+            location.reload(); // Recargar para sincronizar con backend
           }
-          const resumenBox = document.getElementById("resumen-lectora");
-          if (resumenBox) resumenBox.classList.add("hidden");
-        }
-
-        resolve({ success: true });
+        }, 800);
       } else {
-        resolve(resultado);
+        // Si fue lectora, limpiar solo el input
+        const numeroInput = document.getElementById("numero-expediente-lectora");
+        if (numeroInput) {
+          numeroInput.value = "";
+          numeroInput.focus();
+        }
+        const resumenBox = document.getElementById("resumen-lectora");
+        if (resumenBox) resumenBox.classList.add("hidden");
       }
-    });
 
-    // Cerrar al hacer clic fuera
-    modal.addEventListener("click", e => {
-      if (e.target === modal) {
-        modal.remove();
-        resolve({ cancelled: true });
-      }
-    });
-  });
+      return { success: true };
+    } else {
+      return resultado;
+    }
+  } catch (error) {
+    console.error("Error al guardar:", error);
+    showToast(`❌ Error inesperado: ${error.message}`, "error");
+    return { success: false, error: error.message };
+  }
 }

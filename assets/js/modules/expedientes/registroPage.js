@@ -167,26 +167,27 @@ export function initRegistroPage({ mountNode }) {
       title: "📱 Modo Lectora - Registro de Expedientes",
       content: `
         <div class="space-y-4">
-          <p class="text-base font-medium text-slate-700">Usando escáner de códigos de barras</p>
+          <p class="text-base font-medium text-slate-700">Usando escáner de códigos de barras - <strong>Solo ENTER ENTER</strong></p>
           
           <div class="bg-sky-50 border border-sky-300 rounded-lg p-4 space-y-2">
-            <p class="text-sm text-sky-900 font-semibold">📋 Instrucciones:</p>
+            <p class="text-sm text-sky-900 font-semibold">⚡ Flujo rápido (ENTER ENTER):</p>
             <ol class="text-sm text-sky-800 space-y-2 ml-4 list-decimal">
-              <li>Acerca el código de barras al escáner</li>
-              <li>El código se ingresará automáticamente</li>
-              <li>Presiona <strong>ENTER</strong> para registrar</li>
-              <li>El expediente se creará automáticamente</li>
+              <li><strong>ENTER 1:</strong> Escanea el código (se procesará automáticamente)</li>
+              <li><strong>ENTER 2:</strong> Presiona ENTER nuevamente para registrar</li>
+              <li>El expediente se creará en el backend sin confirmación adicional</li>
             </ol>
           </div>
           
-          <p class="text-xs text-slate-600 italic">El código de barras debe tener entre 20-23 dígitos</p>
+          <div class="bg-amber-50 border border-amber-300 rounded-lg p-3">
+            <p class="text-xs text-amber-700 font-semibold">💡 Nota: El código de barras debe tener entre 20-23 dígitos</p>
+          </div>
         </div>
       `,
       confirmText: "Entendido",
       onConfirm: (close) => {
         close();
         document.getElementById("numero-expediente-lectora")?.focus();
-        showToast("📱 Escanea el código y presiona ENTER", "success");
+        showToast("⚡ Escanea + ENTER (dos veces)", "success");
       }
     });
   });
@@ -246,6 +247,35 @@ export function initRegistroPage({ mountNode }) {
           validarNumeroRegistro();
         }
       });
+
+      // ⚡ NUEVO: Permitir ENTER en el número para:
+      // 1ra vez: validar
+      // 2da vez: enviar (si ya está validado)
+      numeroInput.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          
+          const chip = form.querySelector("#numero-expediente-chip");
+          const esValido = chip && chip.textContent.includes("✅");
+          
+          if (esValido && numeroInput.dataset.enterPresionado === "once") {
+            // Segunda vez presionando ENTER: enviar directamente
+            form.dispatchEvent(new Event("submit"));
+            numeroInput.dataset.enterPresionado = "";
+          } else if (!esValido) {
+            // Primera vez: validar/autocompletar
+            let valor = numeroInput.value.trim();
+            if (valor && /^\d+$/.test(valor)) {
+              numeroInput.value = valor.padStart(5, "0");
+              validarNumeroRegistro();
+              numeroInput.dataset.enterPresionado = "once";
+            }
+          } else if (esValido) {
+            // Ya está válido, marcar que ENTER fue presionado
+            numeroInput.dataset.enterPresionado = "once";
+          }
+        }
+      });
     }
 
     // Validación en tiempo real
@@ -294,6 +324,7 @@ export function initRegistroPage({ mountNode }) {
       form.horaIngreso.value = horaActual();
       form.estado.value = "Ingresado";
       numeroInput.value = "";
+      numeroInput.dataset.enterPresionado = "";
       if (checkboxIncidente) checkboxIncidente.checked = false;
       if (inputIncidente) {
         inputIncidente.value = "0";
@@ -304,6 +335,20 @@ export function initRegistroPage({ mountNode }) {
       actualizarEstadoVisual(form);
       showToast("Formulario limpio", "info");
     });
+
+    // Permitir ENTER para enviar directamente si el chip es válido
+    const observacionesInput = form.querySelector("textarea[name='observaciones']");
+    if (observacionesInput) {
+      observacionesInput.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" && !e.shiftKey) {
+          const chip = form.querySelector("#numero-expediente-chip");
+          if (chip && chip.textContent.includes("✅")) {
+            e.preventDefault();
+            form.dispatchEvent(new Event("submit"));
+          }
+        }
+      });
+    }
 
     form?.addEventListener("submit", async (event) => {
       event.preventDefault();
@@ -442,6 +487,9 @@ export function initRegistroPage({ mountNode }) {
       resumenBox.classList.remove("hidden");
       actualizarChipLectora("valido");
       btnGuardar.disabled = false;
+      
+      // ⚡ NUEVO: Permitir presionar ENTER nuevamente para enviar automáticamente
+      numeroInput.dataset.listoParaEnviar = "true";
     }
 
     // Event listeners
@@ -455,13 +503,21 @@ export function initRegistroPage({ mountNode }) {
     numeroInput.addEventListener("keydown", (e) => {
       if (e.key === "Enter") {
         e.preventDefault();
-        procesarCodigoLectora(numeroInput.value);
+        
+        // Si ya procesó un código válido, presionar ENTER nuevamente envía automáticamente
+        if (numeroInput.dataset.listoParaEnviar === "true") {
+          form.dispatchEvent(new Event("submit"));
+        } else {
+          // Primera vez: procesar código
+          procesarCodigoLectora(numeroInput.value);
+        }
       }
     });
 
     // Botón Limpiar
     document.getElementById("btn-limpiar-lectora-btn")?.addEventListener("click", () => {
       numeroInput.value = "";
+      numeroInput.dataset.listoParaEnviar = "false";
       resumenBox.classList.add("hidden");
       actualizarChipLectora("pendiente");
       btnGuardar.disabled = true;
