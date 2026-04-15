@@ -1,7 +1,7 @@
 
 /**
- * Extraer SOLO los dígitos numéricos consecutivos (20-23 dígitos)
- * del inicio del string capturado
+ * Extraer dígitos numéricos consecutivos (20-23 dígitos)
+ * Ahora es más flexible para códigos editados manualmente
  */
 export function extraerCodigoLectora(entrada = "") {
   const raw = String(entrada).trim();
@@ -12,17 +12,18 @@ export function extraerCodigoLectora(entrada = "") {
   
   const codigo = soloDigitos[0];
   
-  // Validar que sea 20 o 23 dígitos
-  if (codigo.length === 20 || codigo.length === 23) {
+  // ✅ VALIDACIÓN FLEXIBLE: Aceptar entre 20-23 dígitos
+  if (codigo.length >= 20 && codigo.length <= 23) {
     return codigo;
   }
   
   // Si tiene más de 23, tomar solo los primeros 23
   if (codigo.length > 23) {
+    console.warn(`⚠️ Código tiene ${codigo.length} dígitos, recortando a 23`);
     return codigo.substring(0, 23);
   }
   
-  // Si tiene menos de 20, rechazar
+  // Si tiene menos de 20, intentar es muy corto
   return null;
 }
 
@@ -51,14 +52,18 @@ export function parsearLectora(codigo = "") {
     const incidente = "0";
     
     // Tipo Juzgado: Pos 15-16 (Excel) = substring(14, 16) en JS
-    // Si "32" → "SP" (Sala Penal), sino → "JR" (Juzgado Primera Instancia)
-    const tipoJuzgado = codigoValido.substring(14, 16) === "32" ? "SP" : "JR";
+    // ✅ Fórmula simple del usuario: SI(EXTRAE(A42;15;2)="32";"SP";"JR")
+    // "32" → "SP" (Sala Penal)
+    // Otros → "JR" (Juzgado Primera Instancia)
+    const codigoJuzgado = codigoValido.substring(14, 16);
+    const tipoJuzgado = codigoJuzgado === "32" ? "SP" : "JR";
     
-    // Materia: Se detecta por patrón en pos 14-16
-    // Si contiene ciertos patrones: "334" o termina en "4" → "LA", sino → "CI"
-    // Verificar pos 14-18 (substring 13-18)
-    const sectoresDigitos = codigoValido.substring(13, 18);
-    const materia = sectoresDigitos.includes("4") || codigoValido.substring(15, 16) === "4" ? "LA" : "CI";
+    // Materia: Pos 17 (Excel) = substring(16, 17) en JS
+    // ✅ Fórmula simple del usuario: SI(EXTRAE(A42;17;1)="4";"LA";"CI")
+    // "4" → "LA" (Laboral)
+    // Otros → "CI" (Civil)
+    const codigoMateria = codigoValido.substring(16, 17);
+    const materia = codigoMateria === "4" ? "LA" : "CI";
     
     // Determinador: Últimos 2 dígitos
     let determinador = codigoValido.substring(codigoValido.length - 2);
@@ -70,18 +75,19 @@ export function parsearLectora(codigo = "") {
       determinador = "01";
     }
     
-    // Construir número de expediente en formato ESTÁNDAR (SIN tipo de juzgado)
-    // Formato: NUMERO-AÑO-INCIDENTE-CODIGOCORTE-MATERIA-DETERMINADOR
-    const numeroExpediente = `${numero}-${anio}-${incidente}-${codigoCorte}-${materia}-${determinador}`;
+    // Construir número de expediente en formato COMPLETO con tipo de juzgado
+    // ✅ Formato correcto: NUMERO-AÑO-INCIDENTE-CODIGOCORTE-JUZGADO-MATERIA-DETERMINADOR
+    // Ejemplo: 00808-2023-0-3101-JR-CI-02
+    const numeroExpediente = `${numero}-${anio}-${incidente}-${codigoCorte}-${tipoJuzgado}-${materia}-${determinador}`;
 
     return {
-      numeroExpediente,           // Para validar: 00461-2024-0-3101-CI-02
+      numeroExpediente,           // Para validar: 00808-2023-0-3101-JR-CI-02
       numero,
       anio,
       incidente,
       codigoCorte,
-      materia,
-      juzgadoTipo: tipoJuzgado,   // JR o SP (separado del número)
+      tipoJuzgado,                // JR o SP
+      materia,                    // LA o CI
       numeroJuzgado: determinador, // Determinador para validar
       fuente: "lectora",
       codigoLecturaRaw: codigoValido  // El código de barras extraído

@@ -187,8 +187,17 @@ export function initRegistroPage({ mountNode }) {
             </ol>
           </div>
           
+          <div class="bg-blue-50 border border-blue-300 rounded-lg p-3 space-y-2">
+            <p class="text-xs text-blue-700 font-semibold">✏️ Si el escáner no captura bien el código:</p>
+            <ul class="text-xs text-blue-700 ml-4 list-disc space-y-1">
+              <li>Puedes <strong>editar manualmente</strong> el código en el campo</li>
+              <li>Debe tener <strong>entre 20-23 dígitos numéricos</strong></li>
+              <li>Se aceptan códigos con problemas menores (se autocorrigen)</li>
+            </ul>
+          </div>
+          
           <div class="bg-amber-50 border border-amber-300 rounded-lg p-3">
-            <p class="text-xs text-amber-700 font-semibold">💡 Nota: El código de barras debe tener entre 20-23 dígitos</p>
+            <p class="text-xs text-amber-700 font-semibold">💡 Nota: Solo se aceptan dígitos (0-9). Caracteres especiales se ignoran automáticamente</p>
           </div>
         </div>
       `,
@@ -400,18 +409,29 @@ export function initRegistroPage({ mountNode }) {
     function procesarCodigoLectora(codigo) {
       const valor = codigo.trim();
       
-      // Extraer SOLO dígitos válidos (20-23 dígitos numéricos)
+      // Extraer SOLO dígitos válidos
       const codigoExtraido = /^\d+/.exec(valor)?.[0];
-      if (!codigoExtraido || (codigoExtraido.length < 20 && codigoExtraido.length !== 23)) {
+      if (!codigoExtraido) {
         actualizarChipLectora("invalido");
         resumenBox.classList.add("hidden");
         btnGuardar.disabled = true;
-        showToast("❌ Código inválido (debe contener 20-23 dígitos)", "error");
+        showToast("❌ Debe ingresar solo dígitos numéricos", "error");
         return;
       }
       
-      // Tomar solo 20 o 23 dígitos
-      const codigoFinal = codigoExtraido.substring(0, 23);
+      // ✅ VALIDACIÓN FLEXIBLE: Aceptar 20-23 dígitos (no solo 20 o 23)
+      if (codigoExtraido.length < 20 || codigoExtraido.length > 23) {
+        actualizarChipLectora("invalido");
+        resumenBox.classList.add("hidden");
+        btnGuardar.disabled = true;
+        const longitud = codigoExtraido.length;
+        showToast(`❌ Código tiene ${longitud} dígitos. Debe tener 20-23 dígitos`, "error");
+        return;
+      }
+      
+      // Normalizar: Tomar exactamente 23 primeros dígitos o 20 si es más corto
+      // En realidad, si es entre 20-23, usar tal cual (no recortar)
+      const codigoFinal = codigoExtraido.length >= 23 ? codigoExtraido.substring(0, 23) : codigoExtraido;
 
       // Parsear
       const parsed = parsearLectora(codigoFinal);
@@ -419,7 +439,8 @@ export function initRegistroPage({ mountNode }) {
         actualizarChipLectora("invalido");
         resumenBox.classList.add("hidden");
         btnGuardar.disabled = true;
-        showToast("❌ No se pudo procesar el código de barras", "error");
+        console.error("❌ Error al parsear código:", { codigo, longitud: codigoFinal.length });
+        showToast("❌ Formato de código de barras no reconocido. Verifica el código ingresado.", "error");
         return;
       }
 
@@ -437,7 +458,7 @@ export function initRegistroPage({ mountNode }) {
         return;
       }
 
-      // Mapeo automático: determinador → juzgado específico
+      // Mapeo automático: determinador → juzgado específico + tipo de juzgado
       const mapDeterminador = {
         "01": ["1er", "Primer"],
         "02": ["2do", "Segundo"],
@@ -450,17 +471,33 @@ export function initRegistroPage({ mountNode }) {
         "09": ["9", "Noveno"]
       };
       
-      // Buscar juzgado específico basado en determinador
+      // Determinar tipo de especialidad basada en el tipo de juzgado del code
+      const mapEspecialidad = {
+        "JR": "Civil",      // Juzgado Primera Instancia (Civil)
+        "SP": "Penal"       // Sala Penal
+      };
+      
+      // Buscar juzgado específico basado en determinador + tipo
       const patternsABuscar = mapDeterminador[parsed.numeroJuzgado] || ["1er", "Primer"];
+      const especialidad = mapEspecialidad[parsed.tipoJuzgado] || "Civil";
       const juzgados = juzgadoService.listarSync();
       
       let juzgadoDetectado = null;
       for (const pattern of patternsABuscar) {
-        juzgadoDetectado = juzgados.find(j => j.nombre.includes(pattern) && j.nombre.includes("Civil"));
+        juzgadoDetectado = juzgados.find(j => 
+          j.nombre.includes(pattern) && j.nombre.includes(especialidad)
+        );
         if (juzgadoDetectado) break;
       }
       
-      const juzgadoNombre = juzgadoDetectado ? juzgadoDetectado.nombre : `Juzgado Civil - Det. ${parsed.numeroJuzgado}`;
+      // Si no encuentra por especialidad, usar por defecto
+      if (!juzgadoDetectado) {
+        juzgadoDetectado = juzgados.find(j => 
+          j.nombre.includes(patternsABuscar[0])
+        );
+      }
+      
+      const juzgadoNombre = juzgadoDetectado ? juzgadoDetectado.nombre : `Juzgado ${especialidad} - Det. ${parsed.numeroJuzgado} (${parsed.tipoJuzgado})`;
 
       // Actualizar formulario con datos parseados
       form.numeroExpediente.value = parsed.numeroExpediente;
@@ -507,6 +544,19 @@ export function initRegistroPage({ mountNode }) {
       // (para capturar códigos que vienen con información extra)
       const soloNumeros = e.target.value.replace(/[^\d]/g, "");
       e.target.value = soloNumeros.substring(0, 30);
+      
+      // Mostrar feedback visual mientras escribe
+      const longitud = soloNumeros.length;
+      if (longitud === 0) {
+        actualizarChipLectora("pendiente");
+        resumenBox.classList.add("hidden");
+      } else if (longitud >= 20 && longitud <= 23) {
+        actualizarChipLectora("pendiente", `✓ ${longitud} dígitos - Presiona ENTER`);
+      } else if (longitud > 23) {
+        actualizarChipLectora("pendiente", `⚠️ ${longitud} dígitos (máximo 23)`);
+      } else {
+        actualizarChipLectora("pendiente", `${longitud}/20 dígitos... sigue escribiendo`);
+      }
     });
 
     numeroInput.addEventListener("keydown", (e) => {
