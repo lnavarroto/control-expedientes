@@ -1,0 +1,13 @@
+import { ESTADOS_EXPEDIENTE, UBICACIONES_PREDETERMINADAS, JUZGADOS, MATERIAS } from "../data/mockData.js";
+
+export const APP_ROLES = {
+  OPERADOR: "OPERADOR",
+  ADMIN: "ADMINISTRADORA"
+};
+
+export const EXPEDIENTE_CONSTANTS = {
+  estados: ESTADOS_EXPEDIENTE,
+  ubicaciones: UBICACIONES_PREDETERMINADAS,
+  juzgados: JUZGADOS,
+  materias: MATERIAS
+};

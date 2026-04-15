@@ -1,0 +1,65 @@
+# Sistema Operativo
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# IDE y Editor
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+*.code-workspace
+
+# Archivos temporales de desarrollo
+*.log
+debug-*.js
+test-*.js
+EJEMPLOS-*.js
+TEST-*.js
+*.tmp
+*.temp
+
+# Directorios de herramientas
+node_modules/
+dist/
+build/
+
+# Environment y configuración sensible
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+
+# Datos sensibles (si existen)
+datos-sensibles/
+archivos-secretos/
+
+# Archivos de backup
+*.bak
+*.backup
+*~
+
+# Sistema de control de versiones local
+.git/
+.gitignore.bak
+
+# Archivos del sistema
+*.DS_Store
+.AppleDouble
+.LSOverride
+
+# Archivos generados por el navegador
+.cache/
+.parcel-cache/
+
+# Archivos de pruebas locales
+tests-locales/
+debug/
+
+# Anything else that's project-specific
+.local/
+.tmp/
+temp/
