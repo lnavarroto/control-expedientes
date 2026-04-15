@@ -243,12 +243,37 @@ export async function guardarExpedienteAlBackendConConfirmacion(
           }
         }, 800);
       } else {
-        // Si fue lectora, limpiar solo el input
+        // Si fue lectora, LIMPIAR COMPLETAMENTE todos los datos
+        const form = document.getElementById("form-expediente-lectora");
         const numeroInput = document.getElementById("numero-expediente-lectora");
+        
+        if (form) {
+          // Resetear todos los campos ocultos a valores por defecto
+          form.numeroExpediente.value = "";
+          form.numeroJuzgado.value = "01";
+        }
+        
         if (numeroInput) {
           numeroInput.value = "";
+          numeroInput.dataset.listoParaEnviar = "false"; // Resetear flag
           numeroInput.focus();
         }
+        
+        // Limpiar todos los campos ocultos
+        document.getElementById("input-anio").value = "";
+        document.getElementById("input-incidente").value = "0";
+        document.getElementById("input-codigo-corte").value = "";
+        document.getElementById("input-materia").value = "";
+        document.getElementById("input-juzgado").value = "";
+        document.getElementById("input-numero-juzgado").value = "01";
+        
+        // Limpiar resumen
+        document.getElementById("resumen-expediente-completo").textContent = "-";
+        document.getElementById("resumen-juzgado").textContent = "-";
+        document.getElementById("resumen-paquete").textContent = "---";
+        document.getElementById("resumen-ubicacion").textContent = "-";
+        document.getElementById("resumen-estado").textContent = "-";
+        
         const resumenBox = document.getElementById("resumen-lectora");
         if (resumenBox) resumenBox.classList.add("hidden");
       }

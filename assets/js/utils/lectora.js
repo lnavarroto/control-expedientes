@@ -61,7 +61,14 @@ export function parsearLectora(codigo = "") {
     const materia = sectoresDigitos.includes("4") || codigoValido.substring(15, 16) === "4" ? "LA" : "CI";
     
     // Determinador: Últimos 2 dígitos
-    const determinador = codigoValido.substring(codigoValido.length - 2);
+    let determinador = codigoValido.substring(codigoValido.length - 2);
+    
+    // ✅ VALIDACIÓN: Si el determinador no es válido (01-09), usar "01"
+    const determinadorNum = parseInt(determinador, 10);
+    if (determinador.length !== 2 || !/^\d+$/.test(determinador) || determinadorNum < 1 || determinadorNum > 9) {
+      console.warn(`⚠️ Determinador inválido: "${determinador}", usando "01" por defecto`);
+      determinador = "01";
+    }
     
     // Construir número de expediente en formato ESTÁNDAR (SIN tipo de juzgado)
     // Formato: NUMERO-AÑO-INCIDENTE-CODIGOCORTE-MATERIA-DETERMINADOR

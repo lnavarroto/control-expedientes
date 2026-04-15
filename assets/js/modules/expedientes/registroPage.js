@@ -86,11 +86,19 @@ function guardarConConfirmacion(form, mountNode, modoLectora = false) {
   }
 
   // Validar determinador (01-09) - ser más flexible
-  const determinador = data.numeroJuzgado || form.numeroJuzgado?.value?.trim() || "";
-  const determinadorNum = parseInt(determinador, 10);
+  let determinador = data.numeroJuzgado || form.numeroJuzgado?.value?.trim() || "01";
+  let determinadorNum = parseInt(determinador, 10);
+  
+  // Si el determinador es inválido, usar valor por defecto
   if (!determinador || determinador.length !== 2 || !/^\d+$/.test(determinador) || determinadorNum < 1 || determinadorNum > 9) {
-    showToast(`Determinador inválido: "${determinador}" debe ser 2 dígitos entre 01-09`, "warning");
-    return;
+    console.warn(`⚠️ Determinador inválido: "${determinador}", usando "01"`, { data, form: form.numeroJuzgado?.value });
+    determinador = "01";
+    determinadorNum = 1;
+    
+    // Actualizar en el formulario para futuras referencias
+    if (form.numeroJuzgado) {
+      form.numeroJuzgado.value = "01";
+    }
   }
 
   // ============ NUEVO: ENVIAR AL BACKEND ============
@@ -103,7 +111,7 @@ function guardarConConfirmacion(form, mountNode, modoLectora = false) {
   // Obtener botón guardar
   const btnGuardar = document.getElementById("btn-guardar") || form.querySelector("button[type='submit']");
 
-  // Llamar nueva función que maneja todo
+  // Llamar nueva función que maneja todo, pasando el determinador validado
   return guardarExpedienteAlBackendConConfirmacion(
     {
       numeroExpediente: data.numeroExpediente,
@@ -114,6 +122,7 @@ function guardarConConfirmacion(form, mountNode, modoLectora = false) {
       materia: data.materia,
       id_juzgado: form.juzgado?.value || "",
       juzgado: data.juzgado,
+      numeroJuzgado: determinador, // ✅ Pasar el determinador ya validado/corregido
       fechaIngreso: data.fechaIngreso,
       horaIngreso: data.horaIngreso,
       observaciones: data.observaciones
