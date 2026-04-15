@@ -11,6 +11,12 @@ import {
   writeJson
 } from "../utils/storage.js";
 import { parseNumeroExpediente } from "../utils/expedienteParser.js";
+import { appConfig } from "../config.js";
+
+// Cache para expedientes del backend
+const CACHE_EXPEDIENTES_BACKEND = "expedientes_backend_cache";
+const CACHE_TIMESTAMP_EXPEDIENTES = "expedientes_backend_tiempo";
+const CACHE_TIME = 300000; // 5 minutos para expedientes (más fresco que otros catálogos)
 
 function initData() {
   ensureCollection(STORAGE_KEYS.expedientes, EXPEDIENTES_INICIALES);
@@ -32,6 +38,20 @@ function filtrarTexto(base, texto) {
 export const expedienteService = {
   init() {
     initData();
+    // Pre-cargar expedientes del backend al iniciar (en background)
+    this.precargarDelBackend();
+  },
+
+  /**
+   * Pre-cargar expedientes del backend en background
+   */
+  async precargarDelBackend() {
+    try {
+      await this.listarDelBackend();
+      console.log("✅ Expedientes pre-cargados del backend");
+    } catch (error) {
+      console.warn("⚠️ No se pudieron pre-cargar expedientes del backend");
+    }
   },
 
   estados() {
@@ -158,5 +178,82 @@ export const expedienteService = {
       ubicados: expedientes.filter((item) => item.estado === "Ubicado").length,
       retirados: expedientes.filter((item) => item.estado === "Prestado" || item.estado === "Derivado").length
     };
+  },
+
+  // ============ FUNCIONES DE BACKEND ============
+
+  /**
+   * Obtener expedientes del backend con cache
+   */
+  async listarDelBackend() {
+    try {
+      const url = `${appConfig.googleSheetURL}?action=listar_expedientes`;
+      const response = await fetch(url);
+
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+
+      const resultado = await response.json();
+
+      if (resultado.success && Array.isArray(resultado.data)) {
+        // Cachear resultados
+        localStorage.setItem(CACHE_EXPEDIENTES_BACKEND, JSON.stringify(resultado.data));
+        localStorage.setItem(CACHE_TIMESTAMP_EXPEDIENTES, Date.now().toString());
+        console.log(`✅ ${resultado.data.length} expedientes obtenidos del backend`);
+        return {
+          success: true,
+          data: resultado.data
+        };
+      }
+      throw new Error("Respuesta inválida del backend");
+    } catch (error) {
+      console.warn("⚠️ Error obteniendo expedientes del backend:", error);
+      // Intentar retornar cache si existe
+      const cached = localStorage.getItem(CACHE_EXPEDIENTES_BACKEND);
+      if (cached) {
+        console.log("📦 Usando cache de expedientes");
+        return { success: true, data: JSON.parse(cached) };
+      }
+      return { success: false, data: [], message: error.message };
+    }
+  },
+
+  /**
+   * Obtener expedientes del cache (sin esperar HTTP)
+   */
+  listarDelBackendSync() {
+    const timestamp = localStorage.getItem(CACHE_TIMESTAMP_EXPEDIENTES);
+    const ahora = Date.now();
+    const cacheValido =
+      timestamp && ahora - parseInt(timestamp) < CACHE_TIME;
+
+    if (cacheValido) {
+      const cached = localStorage.getItem(CACHE_EXPEDIENTES_BACKEND);
+      return cached ? JSON.parse(cached) : [];
+    }
+    return [];
+  },
+
+  /**
+   * Obtener un expediente por código del backend
+   */
+  async obtenerDelBackendPorCodigo(codigo) {
+    try {
+      const url = `${appConfig.googleSheetURL}?action=obtener_expediente_por_codigo&codigo=${encodeURIComponent(
+        codigo
+      )}`;
+      const response = await fetch(url);
+
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+
+      const resultado = await response.json();
+
+      if (resultado.success) {
+        return { success: true, data: resultado.data };
+      }
+      return { success: false, message: "Expediente no encontrado" };
+    } catch (error) {
+      console.error("Error obteniendo expediente:", error);
+      return { success: false, message: error.message };
+    }
   }
 };

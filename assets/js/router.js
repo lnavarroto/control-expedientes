@@ -2,11 +2,14 @@ import { renderAppLayout } from "./components/layout.js";
 import { authManager } from "./auth/authManager.js";
 import { expedienteService } from "./services/expedienteService.js";
 import { paqueteService } from "./services/paqueteService.js";
+import { estadoService } from "./services/estadoService.js";
+import { materiaService } from "./services/materiaService.js";
+import { juzgadoService } from "./services/juzgadoService.js";
 import { openModal } from "./components/modal.js";
 import { showToast } from "./components/toast.js";
 import { initDashboardPage } from "./modules/dashboard/dashboardPage.js";
 import { initRegistroPage } from "./modules/expedientes/registroPage.js";
-import { initListadoPage } from "./modules/expedientes/listadoPage.js";
+import { initListadoPage } from "./modules/expedientes/listadoPageBackend.js";
 import { initBusquedaPage } from "./modules/busqueda/busquedaPage.js";
 import { initUbicacionesPage } from "./modules/ubicaciones/ubicacionesPage.js";
 import { initPaquetesPage } from "./modules/paquetes/paquetesPage.js";
@@ -53,7 +56,7 @@ export function navegarA(pagina) {
   initRouter();
 }
 
-export function initRouter() {
+export async function initRouter() {
   // Verificar autenticación
   if (!authManager.isAutenticado()) {
     console.warn("⚠️ Usuario no autenticado. Requiere login.");
@@ -63,6 +66,12 @@ export function initRouter() {
 
   expedienteService.init();
   paqueteService.init();
+  
+  // Precargar datos desde Google Sheet (en paralelo, sin esperar)
+  materiaService.precargar().catch(err => console.warn("⚠️ Error precargando materias:", err));
+  juzgadoService.precargar().catch(err => console.warn("⚠️ Error precargando juzgados:", err));
+  estadoService.precargar().catch(err => console.warn("⚠️ Error precargando estados:", err));
+  paqueteService.precargar().catch(err => console.warn("⚠️ Error precargando paquetes:", err));
 
   const page = document.body.dataset.page || "dashboard";
   const route = ROUTES[page];
@@ -152,8 +161,18 @@ export function initRouter() {
   const moduleRoot = document.getElementById("module-root");
   if (moduleRoot && route.init) {
     console.log(`🚀 Inicializando módulo: ${page}`);
-    route.init({ mountNode: moduleRoot });
-    console.log(`✅ Módulo ${page} cargado exitosamente`);
+    
+    // Ejecutar init (puede ser async o sync)
+    const result = route.init({ mountNode: moduleRoot });
+    
+    // Si es una Promise, esperar a que se resuelva
+    if (result instanceof Promise) {
+      result
+        .then(() => console.log(`✅ Módulo ${page} cargado exitosamente`))
+        .catch(err => console.error(`❌ Error cargando ${page}:`, err));
+    } else {
+      console.log(`✅ Módulo ${page} cargado exitosamente`);
+    }
   } else {
     console.error(`❌ Error: No se pudo cargar el módulo ${page}`, { moduleRoot, routeInit: route.init });
   }

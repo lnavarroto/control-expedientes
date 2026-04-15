@@ -1,89 +1,281 @@
-import { ESTADOS_EXPEDIENTE, JUZGADOS, UBICACIONES_PREDETERMINADAS } from "../data/mockData.js";
+import { ESTADOS_EXPEDIENTE, UBICACIONES_PREDETERMINADAS } from "../data/mockData.js";
+import { materiaService } from "../services/materiaService.js";
+import { juzgadoService } from "../services/juzgadoService.js";
+import { paqueteService } from "../services/paqueteService.js";
 
-function optionList(values, selected) {
+function optionList(values, selected, keyField = null, labelField = null) {
   return values
-    .map((value) => `<option value="${value}" ${selected === value ? "selected" : ""}>${value}</option>`)
+    .map((value) => {
+      const key = keyField ? value[keyField] : value;
+      const label = labelField ? value[labelField] : value;
+      const isSelected = (keyField ? value[keyField] : value) === selected ? "selected" : "";
+      return `<option value="${key}" ${isSelected}>${label}</option>`;
+    })
     .join("");
 }
 
 export function renderExpedienteForm(expediente = {}) {
   const estado = expediente.estado || "Ingresado";
+  
+  // Data para dropdowns (usar SYNC para cargas rápidas del caché)
+  const materias = materiaService.listarSync().filter(m => m.activo);
+  const juzgados = juzgadoService.listarSync();
+  const paquetes = paqueteService.listarSync();
+  
+  // Defaults
+  const incidenteDefault = expediente.incidente || "0";
+  const determinadorDefault = expediente.numeroJuzgado || "01";
+  
   return `
-    <form id="form-expediente" class="card-surface p-5 md:p-6 space-y-5">
+    <form id="form-expediente" class="space-y-4">
       <input type="hidden" name="id" value="${expediente.id || ""}" />
-      <div class="registro-heading card-soft p-4 md:p-5">
-        <div class="flex flex-wrap items-center justify-between gap-2">
-          <label class="text-sm font-semibold uppercase tracking-wide text-slate-600">Número de expediente</label>
-          <span id="numero-expediente-chip" class="badge bg-slate-100 text-slate-700">Pendiente de validar</span>
+      
+      <!-- 📋 NÚMERO DE EXPEDIENTE - SECCIÓN PRINCIPAL -->
+      <div class="rounded-xl border-2 border-blue-300 bg-gradient-to-r from-blue-50 to-cyan-50 p-6 shadow-md">
+        <div class="flex items-center gap-2 mb-4">
+          <span class="text-2xl">📋</span>
+          <h3 class="text-base font-bold text-blue-900">Número de Expediente</h3>
+          <div class="ml-auto">
+            <span id="numero-expediente-chip" class="badge bg-blue-100 text-blue-700 text-xs px-3 py-1 font-semibold">✓ Pendiente</span>
+          </div>
         </div>
-        <input id="numero-expediente" class="input-base input-principal mt-2" name="numeroExpediente" placeholder="00012-2026-1-3101-CI-01" value="${expediente.numeroExpediente || ""}" required />
-        <p class="text-xs text-slate-500 mt-2">Formato: 00000-año-incidente-código_corte-materia-código_juzgado</p>
-        <p id="numero-expediente-feedback" class="text-xs mt-1 text-slate-500">Ingrese el número para activar autocompletado y validaciones.</p>
+        
+        <div class="grid grid-cols-12 gap-2 items-end">
+          <!-- NÚMERO -->
+          <div class="col-span-2">
+            <label class="text-xs font-bold text-blue-800 uppercase tracking-wide">Número</label>
+            <input class="input-base w-full text-center font-mono font-bold text-lg border-2 border-blue-400 focus:border-blue-600 focus:ring-2 focus:ring-blue-200 bg-white" 
+              name="numeroExpediente" placeholder="00012" value="${expediente.numeroExpediente ? expediente.numeroExpediente.split('-')[0] : ''}" />
+          </div>
+          <div class="col-span-1 flex justify-center text-blue-600 font-bold">—</div>
+          
+          <!-- AÑO -->
+          <div class="col-span-1">
+            <label class="text-xs font-bold text-blue-800 uppercase tracking-wide">Año</label>
+            <input class="input-base w-full text-center font-mono font-bold text-lg border-2 border-blue-400 focus:border-blue-600 focus:ring-2 focus:ring-blue-200 bg-white" 
+              name="anio" type="number" value="${expediente.anio || ''}" />
+          </div>
+          <div class="col-span-1 flex justify-center text-blue-600 font-bold">—</div>
+          
+          <!-- INCIDENTE CON CHECKBOX -->
+          <div class="col-span-2">
+            <div class="flex items-center gap-1 mb-1">
+              <label class="text-xs font-bold text-blue-800 uppercase tracking-wide">Incidente</label>
+              <input type="checkbox" id="checkbox-incidente" class="w-4 h-4 cursor-pointer border-blue-400 rounded" />
+            </div>
+            <input class="input-base w-full text-center font-mono font-bold text-lg border-2 border-blue-400 focus:border-blue-600 focus:ring-2 focus:ring-blue-200 bg-white" 
+              name="incidente" type="number" min="0" max="999" value="${incidenteDefault}" readonly id="input-incidente" />
+          </div>
+          <div class="col-span-1 flex justify-center text-blue-600 font-bold">—</div>
+          
+          <!-- CORTE (Dropdown) -->
+          <div class="col-span-2">
+            <label class="text-xs font-bold text-blue-800 uppercase tracking-wide">Corte</label>
+            <select class="select-base w-full text-center font-mono font-bold text-lg border-2 border-blue-400 focus:border-blue-600 focus:ring-2 focus:ring-blue-200 bg-white" name="codigoCorte">
+              <option value="3101-JR" ${expediente.codigoCorte === '3101-JR' ? 'selected' : ''}>3101-JR</option>
+              <option value="3101-JP" ${expediente.codigoCorte === '3101-JP' ? 'selected' : ''}>3101-JP</option>
+              <option value="3101-JM" ${expediente.codigoCorte === '3101-JM' ? 'selected' : ''}>3101-JM</option>
+              <option value="3101-SP" ${expediente.codigoCorte === '3101-SP' ? 'selected' : ''}>3101-SP</option>
+            </select>
+          </div>
+          <div class="col-span-1 flex justify-center text-blue-600 font-bold">—</div>
+          
+          <!-- MATERIA (Desde Google Sheets) -->
+          <div class="col-span-2">
+            <label class="text-xs font-bold text-blue-800 uppercase tracking-wide">Materia</label>
+            <select class="select-base w-full text-center font-mono font-bold text-lg border-2 border-blue-400 focus:border-blue-600 focus:ring-2 focus:ring-blue-200 bg-white" name="materia">
+              ${optionList(materias, expediente.materia, 'codigo', 'abreviatura')}
+            </select>
+          </div>
+          <div class="col-span-1 flex justify-center text-blue-600 font-bold">—</div>
+          
+          <!-- DETERMINADOR (01-09) -->
+          <div class="col-span-1">
+            <label class="text-xs font-bold text-blue-800 uppercase tracking-wide">Det</label>
+            <input class="input-base w-full text-center font-mono font-bold text-lg border-2 border-blue-400 focus:border-blue-600 focus:ring-2 focus:ring-blue-200 bg-white" 
+              name="numeroJuzgado" type="text" maxlength="2" value="${determinadorDefault}" id="input-determinador" placeholder="01" />
+          </div>
+        </div>
+        
+        <p id="numero-expediente-feedback" class="text-xs text-blue-600 mt-3 font-medium">Ingrese el número para activar autocompletado</p>
       </div>
 
-      <section class="card-soft p-4">
-        <h4 class="text-sm font-bold uppercase tracking-wide text-slate-600 mb-3">Datos del expediente</h4>
-        <div class="grid md:grid-cols-2 gap-4">
-          <div><label class="text-sm font-semibold">Año</label><input class="input-base" name="anio" value="${expediente.anio || ""}" required /></div>
-          <div><label class="text-sm font-semibold">Incidente</label><input class="input-base" name="incidente" value="${expediente.incidente || "0"}" required /></div>
-          <div><label class="text-sm font-semibold">Fecha de ingreso</label><input type="date" class="input-base" name="fechaIngreso" value="${expediente.fechaIngreso || ""}" required /></div>
-          <div><label class="text-sm font-semibold">Hora de ingreso</label><input type="time" class="input-base" name="horaIngreso" value="${expediente.horaIngreso || ""}" required /></div>
-          <div class="md:col-span-2">
-            <label class="text-sm font-semibold">Observaciones</label>
-            <textarea class="textarea-base" rows="3" name="observaciones">${expediente.observaciones || ""}</textarea>
+      <!-- ⏰ DATOS TEMPORALES -->
+      <div class="rounded-lg border-2 border-purple-300 bg-gradient-to-r from-purple-50 to-pink-50 p-4">
+        <div class="flex items-center gap-2 mb-3">
+          <span class="text-xl">⏰</span>
+          <h4 class="text-sm font-bold text-purple-900">Ingreso del Expediente</h4>
+        </div>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div>
+            <label class="text-xs font-bold text-purple-800 uppercase">Fecha</label>
+            <input type="date" class="input-base w-full border-2 border-purple-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-200" 
+              name="fechaIngreso" value="${expediente.fechaIngreso || ''}" required />
+          </div>
+          <div>
+            <label class="text-xs font-bold text-purple-800 uppercase">Hora</label>
+            <input type="time" class="input-base w-full border-2 border-purple-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-200" 
+              name="horaIngreso" value="${expediente.horaIngreso || ''}" required />
+          </div>
+          <div>
+            <label class="text-xs font-bold text-purple-800 uppercase">Juzgado/Sala</label>
+            <select class="select-base w-full border-2 border-purple-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-200" name="juzgado">
+              <option value="">-- Seleccionar --</option>
+              ${optionList(juzgados, expediente.juzgado, 'nombre', 'nombre')}
+            </select>
+          </div>
+          <div>
+            <label class="text-xs font-bold text-purple-800 uppercase">Paquete</label>
+            <select class="select-base w-full border-2 border-purple-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-200" name="paqueteId">
+              <option value="">-- Opcional --</option>
+              ${optionList(paquetes, expediente.paqueteId, 'id', 'codigo')}
+            </select>
           </div>
         </div>
-      </section>
+      </div>
 
-      <section class="card-soft p-4">
-        <h4 class="text-sm font-bold uppercase tracking-wide text-slate-600 mb-3">Datos judiciales</h4>
-        <div class="grid md:grid-cols-2 gap-4">
-          <div><label class="text-sm font-semibold">Código de corte</label><input class="input-base" name="codigoCorte" value="${expediente.codigoCorte || "3101"}" required /></div>
-          <div><label class="text-sm font-semibold">Materia</label><input class="input-base" name="materia" value="${expediente.materia || "CI"}" required /></div>
-          <div>
-            <label class="text-sm font-semibold">Juzgado</label>
-            <select class="select-base" name="juzgado">${optionList(JUZGADOS, expediente.juzgado)}</select>
-          </div>
-          <div>
-            <label class="text-sm font-semibold">Juzgado manual (opcional)</label>
-            <input class="input-base" name="juzgadoManual" placeholder="Escriba juzgado si no está en la lista" value="" />
-          </div>
+      <!-- 📍 UBICACIÓN Y ESTADO -->
+      <div class="rounded-lg border-2 border-green-300 bg-gradient-to-r from-green-50 to-emerald-50 p-4">
+        <div class="flex items-center gap-2 mb-3">
+          <span class="text-xl">📍</span>
+          <h4 class="text-sm font-bold text-green-900">Ubicación y Control</h4>
         </div>
-      </section>
-
-      <section class="card-soft p-4">
-        <h4 class="text-sm font-bold uppercase tracking-wide text-slate-600 mb-3">Ubicación</h4>
-        <div class="grid md:grid-cols-2 gap-4">
+        <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
           <div>
-            <label class="text-sm font-semibold">Ubicación actual</label>
-            <select class="select-base" name="ubicacionActual">${optionList(UBICACIONES_PREDETERMINADAS, expediente.ubicacionActual)}</select>
-          </div>
-          <div><label class="text-sm font-semibold">Paquete asignado (opcional)</label><input class="input-base" name="paqueteId" value="${expediente.paqueteId || ""}" /></div>
-        </div>
-      </section>
-
-      <section class="card-soft p-4">
-        <h4 class="text-sm font-bold uppercase tracking-wide text-slate-600 mb-3">Estado y control</h4>
-        <div class="grid md:grid-cols-2 gap-4 items-end">
-          <div>
-            <label class="text-sm font-semibold">Estado</label>
-            <select class="select-base" id="estado-expediente" name="estado">${optionList(ESTADOS_EXPEDIENTE, estado)}</select>
+            <label class="text-xs font-bold text-green-800 uppercase">Ubicación</label>
+            <select class="select-base w-full border-2 border-green-300 focus:border-green-500 focus:ring-2 focus:ring-green-200" name="ubicacionActual">${optionList(UBICACIONES_PREDETERMINADAS, expediente.ubicacionActual)}</select>
           </div>
           <div>
-            <p class="text-xs uppercase tracking-wide text-slate-500 mb-2">Vista previa de estado</p>
+            <label class="text-xs font-bold text-green-800 uppercase">Estado</label>
+            <select class="select-base w-full border-2 border-green-300 focus:border-green-500 focus:ring-2 focus:ring-green-200" id="estado-expediente" name="estado">${optionList(ESTADOS_EXPEDIENTE, estado)}</select>
+          </div>
+          <div class="flex flex-col justify-end">
+            <p class="text-xs font-bold text-green-800 uppercase mb-1">Vista previa</p>
             <div id="estado-preview" class="inline-flex"></div>
           </div>
         </div>
-      </section>
-
-      <div id="modo-lectora-box" class="hidden rounded-xl border border-sky-300 bg-sky-50 px-4 py-3 text-sm text-sky-900">
-        Modo lectora activo. Escanee el código y presione Enter para autocompletar.
       </div>
-      <p id="form-feedback" class="text-sm min-h-5"></p>
+
+      <!-- 📝 OBSERVACIONES -->
+      <div class="rounded-lg border-2 border-amber-300 bg-gradient-to-r from-amber-50 to-orange-50 p-4">
+        <div class="flex items-center gap-2 mb-2">
+          <span class="text-xl">📝</span>
+          <label class="text-sm font-bold text-amber-900 uppercase">Observaciones</label>
+        </div>
+        <textarea class="textarea-base w-full border-2 border-amber-300 focus:border-amber-500 focus:ring-2 focus:ring-amber-200" 
+          rows="2" name="observaciones" placeholder="Notas adicionales sobre el expediente...">${expediente.observaciones || ''}</textarea>
+      </div>
+
+      <!-- BOTONES -->
+      <p id="form-feedback" class="text-sm min-h-5 text-slate-600"></p>
+      <div class="flex flex-wrap gap-3 justify-end pt-3 border-t-2 border-slate-200">
+        <button type="button" id="btn-limpiar" class="btn btn-secondary rounded-lg px-5 py-2 font-bold">
+          🔄 Limpiar
+        </button>
+        <button type="submit" class="btn btn-primary rounded-lg px-6 py-2 font-bold shadow-lg">
+          ✅ Guardar
+        </button>
+      </div>
+    </form>
+  `;
+}
+
+export function renderFormularioLectora(expediente = {}) {
+  const estado = expediente.estado || "Ingresado";
+  return `
+    <form id="form-expediente-lectora" class="card-surface p-5 md:p-6 space-y-5">
+      <input type="hidden" name="id" value="${expediente.id || ""}" />
+      <input type="hidden" name="tipoIngreso" value="LECTORA" />
+      
+      <!-- Zona de escaneo prominente -->
+      <div class="rounded-2xl border-3 border-dashed border-sky-400 bg-gradient-to-br from-sky-50 to-cyan-50 p-8 md:p-10">
+        <div class="text-center space-y-4">
+          <div class="text-5xl">📱</div>
+          <h3 class="text-xl font-bold text-sky-900">Escáner de Códigos</h3>
+          <p class="text-sm text-sky-700 max-w-md mx-auto">
+            Acerca el código de barras al escáner. Los datos se completarán automáticamente.
+          </p>
+        </div>
+        
+        <div class="mt-6 space-y-2">
+          <label class="text-sm font-semibold text-slate-700 block">Código de barras (20-23 dígitos)</label>
+          <input 
+            id="numero-expediente-lectora" 
+            class="input-base text-center text-lg font-mono tracking-wider" 
+            name="numeroExpediente" 
+            placeholder="Escanea aquí..."
+            maxlength="23"
+            inputmode="numeric"
+            autocomplete="off"
+            value="${expediente.numeroExpediente || ""}" 
+            required 
+          />
+          <p class="text-xs text-sky-600 text-center">Presiona <strong>ENTER</strong> para procesar</p>
+        </div>
+      </div>
+
+      <!-- Estado del escaneo -->
+      <div id="estado-chip-lectora" style="min-height: 40px;"></div>
+
+      <!-- Resumen de datos detectados (oculto hasta escanear) -->
+      <div id="resumen-lectora" class="hidden rounded-lg border-2 border-blue-300 bg-gradient-to-r from-blue-50 to-cyan-50 p-4 space-y-3">
+        <div class="flex items-center justify-between mb-3">
+          <h4 class="text-sm font-semibold text-blue-900">📋 Expediente Detectado:</h4>
+          <div class="flex gap-2">
+            <button type="button" id="btn-editar-lectora" class="btn btn-sm bg-amber-500 hover:bg-amber-600 text-white px-3 py-1 rounded text-xs font-bold">✏️ Editar</button>
+            <button type="button" id="btn-limpiar-lectora-btn" class="btn btn-sm bg-slate-400 hover:bg-slate-500 text-white px-3 py-1 rounded text-xs font-bold">🔄 Limpiar</button>
+          </div>
+        </div>
+        
+        <!-- Una línea con código completo -->
+        <div class="bg-white rounded-lg p-4 border-2 border-blue-200">
+          <p class="text-xs text-slate-500 font-semibold uppercase mb-2">Código Expediente Completo</p>
+          <p id="resumen-expediente-completo" class="font-mono text-base font-bold text-blue-900 break-words">-</p>
+        </div>
+        
+        <!-- Datos adicionales en línea -->
+        <div class="bg-white rounded-lg p-3 space-y-2 text-sm">
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div>
+              <p class="text-xs text-slate-500 font-semibold">Juzgado</p>
+              <p id="resumen-juzgado" class="font-semibold text-slate-900">-</p>
+            </div>
+            <div>
+              <p class="text-xs text-slate-500 font-semibold">Paquete</p>
+              <p id="resumen-paquete" class="font-semibold text-slate-900">-</p>
+            </div>
+            <div>
+              <p class="text-xs text-slate-500 font-semibold">Ubicación</p>
+              <p id="resumen-ubicacion" class="font-semibold text-slate-900">-</p>
+            </div>
+            <div>
+              <p class="text-xs text-slate-500 font-semibold">Estado</p>
+              <p id="resumen-estado" class="font-semibold text-slate-900">-</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Campos ocultos para datos extraídos -->
+      <input type="hidden" name="anio" id="input-anio" value="${expediente.anio || ""}" />
+      <input type="hidden" name="incidente" id="input-incidente" value="${expediente.incidente || "0"}" />
+      <input type="hidden" name="codigoCorte" id="input-codigo-corte" value="${expediente.codigoCorte || "3101"}" />
+      <input type="hidden" name="materia" id="input-materia" value="${expediente.materia || "CI"}" />
+      <input type="hidden" name="juzgado" id="input-juzgado" value="${expediente.juzgado || ""}" />
+      <input type="hidden" name="numeroJuzgado" id="input-numero-juzgado" value="${expediente.numeroJuzgado || "01"}" />
+      <input type="hidden" name="juzgadoManual" value="" />
+      <input type="hidden" name="fechaIngreso" value="${expediente.fechaIngreso || new Date().toISOString().split('T')[0]}" />
+      <input type="hidden" name="horaIngreso" value="${expediente.horaIngreso || new Date().toTimeString().slice(0, 5)}" />
+      <input type="hidden" name="estado" value="${estado}" />
+      <input type="hidden" name="ubicacionActual" value="${expediente.ubicacionActual || "Estante"}" />
+      <input type="hidden" name="paqueteId" value="${expediente.paqueteId || ""}" />
+      <input type="hidden" name="observaciones" value="" />
+      <input type="hidden" name="textoRelacionado" value="" />
+
+      <p id="form-feedback-lectora" class="text-sm min-h-5"></p>
 
       <div class="flex flex-wrap gap-3 justify-end pt-1">
-        <button type="button" id="btn-limpiar" class="btn btn-secondary">Limpiar</button>
-        <button type="submit" class="btn btn-primary">Guardar expediente</button>
+        <button type="submit" id="btn-guardar-lectora" class="btn btn-primary" disabled>✅ Guardar expediente</button>
       </div>
     </form>
   `;
