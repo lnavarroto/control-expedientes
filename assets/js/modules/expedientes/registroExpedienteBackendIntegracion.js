@@ -238,10 +238,37 @@ export async function guardarExpedienteAlBackendConConfirmacion(
       // Reiniciar formulario si fue manual
       if (!modoLectora) {
         setTimeout(() => {
-          if (mountNode) {
-            location.reload(); // Recargar para sincronizar con backend
+          const form = document.getElementById("form-expediente");
+          if (form) {
+            // LIMPIAR los campos individuales para siguiente registro
+            form.numeroExpediente.value = "";
+            form.numeroExpediente.dataset.enterPresionado = "";
+            form.anio.value = "";
+            form.incidente.value = "0";
+            document.getElementById("checkbox-incidente")?.checked && document.getElementById("checkbox-incidente").dispatchEvent(new Event("change"));
+            form.codigoCorte.value = "3101-JR";
+            form.materia.value = "CI";
+            form.numeroJuzgado.value = "01";
+            form.fechaIngreso.value = new Date().toISOString().split("T")[0];
+            form.horaIngreso.value = new Date().toTimeString().slice(0, 5);
+            form.estado.value = "Ingresado";
+            form.ubicacionActual.value = "Estante";
+            form.juzgado.value = "";
+            form.paqueteId.value = "";
+            form.observaciones.value = "";
+            
+            // Actualizar chip visual
+            const badge = form.querySelector("#numero-expediente-chip");
+            if (badge) {
+              badge.textContent = "Pendiente de validar";
+              badge.className = "badge bg-slate-100 text-slate-700 text-xs px-3 py-1 font-semibold";
+            }
+            
+            // Enfocar en número para siguiente entrada
+            form.numeroExpediente.focus();
+            showToast("✅ Formulario listo para el próximo expediente", "success");
           }
-        }, 800);
+        }, 500);
       } else {
         // Si fue lectora, LIMPIAR COMPLETAMENTE todos los datos
         const form = document.getElementById("form-expediente-lectora");
