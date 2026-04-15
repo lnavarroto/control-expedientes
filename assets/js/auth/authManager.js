@@ -39,117 +39,92 @@ export class AuthManager {
       };
     }
 
-    return new Promise((resolve) => {
-      try {
-        console.log("🔍 Iniciando validación de trabajador con DNI:", dni);
+    try {
+      console.log("🔍 Iniciando validación de trabajador con DNI:", dni);
 
-        // Crear nombre único para callback JSONP
-        const callbackName = "jsonpCallback_" + Date.now();
+      // Construir URL para fetch
+      const url = `${this.apiUrl}?action=obtener_usuario_por_dni&dni=${encodeURIComponent(dni.trim())}`;
+      console.log("📡 Llamando a:", url);
 
-        // Guardar la función callback en window
-        window[callbackName] = (responseData) => {
-          console.log("📡 Respuesta del backend:", responseData);
+      // Hacer llamada fetch
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
 
-          try {
-            // Procesar respuesta
-            let usuario = null;
-            
-            if (responseData.success && responseData.data) {
-              usuario = responseData.data;
-            } else if (responseData.data) {
-              usuario = responseData.data;
-            }
-
-            if (!usuario) {
-              resolve({
-                success: false,
-                message: responseData.error || "No se encontró un trabajador activo con ese DNI. Acceso denegado.",
-                trabajador: null
-              });
-              return;
-            }
-
-            // Verificar que el trabajador está activo
-            const activo = String(usuario.activo || "").trim().toUpperCase();
-            if (activo !== "SI") {
-              resolve({
-                success: false,
-                message: "El trabajador está inactivo. Acceso denegado.",
-                trabajador: null
-              });
-              return;
-            }
-
-            // Trabajador válido - guardar en memoria y localStorage
-            this.trabajador = {
-              id_usuario: usuario.id_usuario,
-              dni: usuario.dni,
-              nombres: usuario.nombres,
-              apellidos: usuario.apellidos,
-              correo: usuario.correo,
-              telefono: usuario.telefono,
-              cargo: usuario.cargo,
-              area_modulo: usuario.area_modulo,
-              rol: usuario.rol,
-              activo: usuario.activo,
-              validado_en: new Date().toISOString()
-            };
-
-            console.log("✅ Trabajador validado:", this.trabajador);
-
-            localStorage.setItem("trabajador_validado", JSON.stringify(this.trabajador));
-
-            resolve({
-              success: true,
-              message: "Trabajador validado correctamente. Acceso autorizado.",
-              trabajador: this.trabajador
-            });
-          } catch (error) {
-            console.error("❌ Error procesando respuesta:", error);
-            resolve({
-              success: false,
-              message: "Error procesando respuesta del servidor: " + error.message,
-              trabajador: null
-            });
-          } finally {
-            // Limpiar callback global
-            delete window[callbackName];
-            // Eliminar el script tag
-            const script = document.getElementById(callbackName);
-            if (script) script.remove();
-          }
-        };
-
-        // Crear URL con JSONP
-        const url = `${this.apiUrl}?action=obtener_usuario_por_dni&dni=${encodeURIComponent(dni.trim())}&callback=${callbackName}`;
-
-        console.log("📡 Llamando a:", url);
-
-        // Crear e inyectar script tag
-        const script = document.createElement("script");
-        script.id = callbackName;
-        script.src = url;
-        script.onerror = () => {
-          console.error("❌ Error cargando script JSONP");
-          delete window[callbackName];
-          script.remove();
-          resolve({
-            success: false,
-            message: "Error de conexión con el servidor",
-            trabajador: null
-          });
-        };
-
-        document.head.appendChild(script);
-      } catch (error) {
-        console.error("❌ Error al validar trabajador:", error);
-        resolve({
+      if (!response.ok) {
+        console.error(`❌ Error HTTP ${response.status}: ${response.statusText}`);
+        return {
           success: false,
-          message: "Error inesperado: " + error.message,
+          message: `Error del servidor (${response.status}). Por favor, intenta más tarde.`,
           trabajador: null
-        });
+        };
       }
-    });
+
+      const responseData = await response.json();
+      console.log("📡 Respuesta del backend:", responseData);
+
+      // Procesar respuesta
+      let usuario = null;
+      
+      if (responseData.success && responseData.data) {
+        usuario = responseData.data;
+      } else if (responseData.data) {
+        usuario = responseData.data;
+      }
+
+      if (!usuario) {
+        return {
+          success: false,
+          message: responseData.error || "No se encontró un trabajador activo con ese DNI. Acceso denegado.",
+          trabajador: null
+        };
+      }
+
+      // Verificar que el trabajador está activo
+      const activo = String(usuario.activo || "").trim().toUpperCase();
+      if (activo !== "SI") {
+        return {
+          success: false,
+          message: "El trabajador está inactivo. Acceso denegado.",
+          trabajador: null
+        };
+      }
+
+      // Trabajador válido - guardar en memoria y localStorage
+      this.trabajador = {
+        id_usuario: usuario.id_usuario,
+        dni: usuario.dni,
+        nombres: usuario.nombres,
+        apellidos: usuario.apellidos,
+        correo: usuario.correo,
+        telefono: usuario.telefono,
+        cargo: usuario.cargo,
+        area_modulo: usuario.area_modulo,
+        rol: usuario.rol,
+        activo: usuario.activo,
+        validado_en: new Date().toISOString()
+      };
+
+      console.log("✅ Trabajador validado:", this.trabajador);
+      localStorage.setItem("trabajador_validado", JSON.stringify(this.trabajador));
+
+      return {
+        success: true,
+        message: "Trabajador validado correctamente. Acceso autorizado.",
+        trabajador: this.trabajador
+      };
+
+    } catch (error) {
+      console.error("❌ Error al validar trabajador:", error);
+      return {
+        success: false,
+        message: "Error de conexión con el servidor. Verifica tu conexión a internet.",
+        trabajador: null
+      };
+    }
   }
 
   /**
