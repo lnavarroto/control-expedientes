@@ -29,11 +29,27 @@ function defaults() {
 function parseForm(form) {
   const data = Object.fromEntries(new FormData(form).entries());
   const juzgadoFinal = data.juzgadoManual?.trim() ? data.juzgadoManual.trim() : data.juzgado;
+  
+  // Construir número expediente completo si está en modo manual (campos separados)
+  let numeroExpediente = data.numeroExpediente?.trim().toUpperCase() || "";
+  
+  // Si no tiene guiones (formato separado), construir desde campos individuales
+  if (numeroExpediente && !numeroExpediente.includes("-")) {
+    const numero = (data.numeroExpediente || "").padStart(5, "0");
+    const anio = data.anio || "0000";
+    const incidente = data.incidente || "0";
+    const codigoCorte = data.codigoCorte || "3101"; // Ya incluye tipo de juzgado (ej: 3101-JR)
+    const materia = data.materia || "CI";
+    const determinador = (data.numeroJuzgado || "01").padStart(2, "0");
+    
+    numeroExpediente = `${numero}-${anio}-${incidente}-${codigoCorte}-${materia}-${determinador}`;
+  }
+  
   return {
     ...data,
     juzgado: juzgadoFinal,
-    numeroExpediente: data.numeroExpediente.trim().toUpperCase(),
-    textoRelacionado: `${data.numeroExpediente} ${data.materia} ${juzgadoFinal} ${data.observaciones || ""}`.toLowerCase()
+    numeroExpediente: numeroExpediente,
+    textoRelacionado: `${numeroExpediente} ${data.materia} ${juzgadoFinal} ${data.observaciones || ""}`.toLowerCase()
   };
 }
 
@@ -251,12 +267,23 @@ export function initRegistroPage({ mountNode }) {
 
     // Autocompletar número expediente con padding (ej: 50 -> 00050)
     if (numeroInput) {
-      // Solo permitir números mientras escribe
+      // Permitir formato completo: 00469-2021-0-3101-JR-CI-02
       numeroInput.addEventListener("input", (e) => {
-        e.target.value = e.target.value.replace(/[^\d]/g, "").slice(0, 5);
+        let valor = e.target.value.toUpperCase();
+        
+        // Si el usuario solo está escribiendo números, aplicar padding automático
+        if (/^\d+$/.test(valor) && valor.length <= 5) {
+          e.target.value = valor.slice(0, 5);
+        } else if (/^\d+$/.test(valor) && valor.length > 5) {
+          // Si tiene más de 5 dígitos seguidos, probablemente sea error
+          e.target.value = valor.slice(0, 5);
+        } else {
+          // Permitir formato completo con guiones y letras
+          e.target.value = valor;
+        }
       });
 
-      // Al perder foco, aplicar padding
+      // Al perder foco, aplicar padding si es solo números
       numeroInput.addEventListener("blur", (e) => {
         let valor = e.target.value.trim();
         if (valor && /^\d+$/.test(valor)) {
@@ -298,31 +325,42 @@ export function initRegistroPage({ mountNode }) {
 
     // Validación en tiempo real
     function validarNumeroRegistro() {
-      const valor = numeroInput.value.trim().toUpperCase();
-
-      if (!valor) {
+      const numero = (numeroInput.value.trim() || "").padStart(5, "0").toUpperCase();
+      
+      if (!numero || numero === "00000") {
         actualizarChipManual("pendiente");
         return;
       }
 
-      if (validarNumeroExpediente(valor)) {
-        actualizarChipManual("valido");
-        intentarAutoCompletar(form, valor);
+      // Construir número expediente completo desde campos individuales
+      const anio = form.anio?.value || "0000";
+      const incidente = form.incidente?.value || "0";
+      const codigoCorte = form.codigoCorte?.value || "3101-JR";
+      const materia = form.materia?.value || "CI";
+      const determinador = (form.numeroJuzgado?.value || "01").padStart(2, "0");
+      
+      const numeroCompleto = `${numero}-${anio}-${incidente}-${codigoCorte}-${materia}-${determinador}`;
+
+      if (validarNumeroExpediente(numeroCompleto)) {
+        actualizarChipManual("valido", numeroCompleto);
+        intentarAutoCompletar(form, numeroCompleto);
       } else {
-        actualizarChipManual("invalido");
+        actualizarChipManual("invalido", numeroCompleto);
       }
     }
 
-    function actualizarChipManual(estado) {
+    function actualizarChipManual(estado, numeroCompleto = "") {
       const badge = form.querySelector("#numero-expediente-chip");
       if (!badge) return;
 
       const estados = {
         pendiente: "Pendiente de validar",
-        valido: "✅ Válido",
-        invalido: "❌ Inválido"
+        valido: `✅ ${numeroCompleto || "Válido"}`,
+        invalido: `❌ ${numeroCompleto || "Inválido"}`
       };
-      badge.textContent = estados[estado] || "Pendiente";
+      const texto = estados[estado] || "Pendiente";
+      badge.textContent = texto;
+      badge.title = numeroCompleto; // Para ver en hover
       badge.className = `badge ${
         estado === "valido" ? "bg-green-100 text-green-800" : 
         estado === "invalido" ? "bg-red-100 text-red-800" : 
