@@ -36,6 +36,11 @@ function filtrarTexto(base, texto) {
 }
 
 export const expedienteService = {
+    limpiarCacheBackend() {
+      localStorage.removeItem(CACHE_EXPEDIENTES_BACKEND);
+      localStorage.removeItem(CACHE_TIMESTAMP_EXPEDIENTES);
+    },
+
   init() {
     initData();
     // Pre-cargar expedientes del backend al iniciar (en background)
@@ -185,10 +190,13 @@ export const expedienteService = {
   /**
    * Obtener expedientes del backend con cache
    */
-  async listarDelBackend() {
+  async listarDelBackend({ forceRefresh = false } = {}) {
     try {
-      const url = `${appConfig.googleSheetURL}?action=listar_expedientes`;
-      const response = await fetch(url);
+      const url = `${appConfig.googleSheetURL}?action=listar_expedientes&_ts=${Date.now()}`;
+      const response = await fetch(url, {
+        method: "GET",
+        cache: "no-store"
+      });
 
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
 
@@ -207,7 +215,11 @@ export const expedienteService = {
       throw new Error("Respuesta inválida del backend");
     } catch (error) {
       console.warn("⚠️ Error obteniendo expedientes del backend:", error);
-      // Intentar retornar cache si existe
+      // Intentar retornar cache si existe (excepto si se exigio refresco real)
+      if (forceRefresh) {
+        return { success: false, data: [], message: error.message };
+      }
+
       const cached = localStorage.getItem(CACHE_EXPEDIENTES_BACKEND);
       if (cached) {
         console.log("📦 Usando cache de expedientes");

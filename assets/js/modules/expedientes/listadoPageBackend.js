@@ -32,11 +32,14 @@ function renderTablaExpedientes(expedientes, paginaActual = 1, itemsPorPagina = 
     };
   }
 
-  // 🔄 ORDENAR DEL ÚLTIMO AL PRIMERO (descendente)
+  const idExpToNumber = (idExp) => {
+    const match = String(idExp || "").match(/EXP-(\d+)/i);
+    return match ? Number(match[1]) : 0;
+  };
+
+  // Orden real por correlativo de Excel: id_expediente (EXP-0001 ... EXP-0149)
   const expedientesOrdenados = [...expedientes].sort((a, b) => {
-    const fechaA = new Date(a.fecha_ingreso || 0);
-    const fechaB = new Date(b.fecha_ingreso || 0);
-    return fechaB - fechaA; // Descendente (más reciente primero)
+    return idExpToNumber(b.id_expediente) - idExpToNumber(a.id_expediente);
   });
 
   // Calcular paginación
@@ -49,7 +52,8 @@ function renderTablaExpedientes(expedientes, paginaActual = 1, itemsPorPagina = 
   // Renderizar filas
   const filas = expedientesPagina.map((exp, indexEnPagina) => {
     const formateado = formatearExpediente(exp);
-    const numeroGlobal = inicio + indexEnPagina + 1;
+    // Mostrar ORDEN con el correlativo real de id_expediente
+    const numeroGlobal = idExpToNumber(exp.id_expediente) || (expedientesOrdenados.length - inicio - indexEnPagina);
     const estadoHtml = `
       <span class="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold 
         bg-${formateado.estadoColor}-100 text-${formateado.estadoColor}-700">
@@ -282,16 +286,16 @@ function renderPanelFiltradores(expedientes) {
 /**
  * Inicializar página de listado
  */
-export async function initListadoPage({ mountNode }) {
+export async function initListadoPage({ mountNode, forceRefresh = false }) {
   // ✅ OPTIMIZACIÓN: Mostrar caché primero (si existe) para velocidad inmediata
-  const cachedExp = expedienteService.listarDelBackendSync();
+  const cachedExp = forceRefresh ? [] : expedienteService.listarDelBackendSync();
   
   if (cachedExp.length > 0) {
     console.log("⚡ Mostrando expedientes del caché (carga rápida)");
     renderListadoExpedientes(cachedExp, mountNode);
     
     // En background, actualizar con datos frescos
-    expedienteService.listarDelBackend()
+    expedienteService.listarDelBackend({ forceRefresh: false })
       .then(resultado => {
         if (resultado.success && resultado.data) {
           console.log("✅ Datos actualizados del backend");
@@ -315,7 +319,7 @@ export async function initListadoPage({ mountNode }) {
 
   try {
     // Obtener expedientes del backend
-    const resultado = await expedienteService.listarDelBackend();
+    const resultado = await expedienteService.listarDelBackend({ forceRefresh });
 
     if (!resultado.success || !resultado.data) {
       mountNode.innerHTML = `
@@ -546,7 +550,8 @@ function renderListadoExpedientes(expedientes, mountNode) {
     document.getElementById("btn-recargar")?.addEventListener("click", async () => {
       showToast("🔄 Recargando expedientes...", "info");
       paginaActual = 1;
-      await initListadoPage({ mountNode });
+      expedienteService.limpiarCacheBackend();
+      await initListadoPage({ mountNode, forceRefresh: true });
     });
 
     // ⚡ LISTENERS DE PAGINACIÓN

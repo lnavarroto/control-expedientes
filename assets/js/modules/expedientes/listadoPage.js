@@ -229,7 +229,11 @@ function sliceByPage(data, page, pageSize) {
 }
 
 function valorOrden(item, key) {
-  if (key === "expediente") return item.numeroExpediente || "";
+  if (key === "expediente") {
+    // Extraer número numérico del expediente para ordenar correctamente
+    const match = item.numeroExpediente?.match(/^(\d+)/);
+    return match ? parseInt(match[1]) : 0;
+  }
   if (key === "materia") return item.materia || "";
   if (key === "juzgado") return item.juzgado || "";
   if (key === "ubicacion") return item.ubicacionActual || "";
@@ -242,10 +246,21 @@ function valorOrden(item, key) {
 function ordenarExpedientes(data, sortState) {
   const sorted = [...data];
   sorted.sort((a, b) => {
-    const valueA = normalizarTexto(valorOrden(a, sortState.key));
-    const valueB = normalizarTexto(valorOrden(b, sortState.key));
-    if (valueA < valueB) return sortState.direction === "asc" ? -1 : 1;
-    if (valueA > valueB) return sortState.direction === "asc" ? 1 : -1;
+    const valueA = valorOrden(a, sortState.key);
+    const valueB = valorOrden(b, sortState.key);
+    
+    // Para expediente, ordenar numéricamente
+    if (sortState.key === "expediente") {
+      const numA = typeof valueA === 'number' ? valueA : 0;
+      const numB = typeof valueB === 'number' ? valueB : 0;
+      return sortState.direction === "asc" ? numA - numB : numB - numA;
+    }
+    
+    // Para otros campos, ordenar alfabéticamente
+    const textA = normalizarTexto(String(valueA));
+    const textB = normalizarTexto(String(valueB));
+    if (textA < textB) return sortState.direction === "asc" ? -1 : 1;
+    if (textA > textB) return sortState.direction === "asc" ? 1 : -1;
     return 0;
   });
   return sorted;
@@ -418,7 +433,7 @@ export function initListadoPage({ mountNode }) {
   const data = expedienteService.listar();
   let page = 1;
   let pageSize = PAGE_SIZE_DEFAULT;
-  let sortState = { key: "ingreso", direction: "desc" };
+  let sortState = { key: "expediente", direction: "desc" };
   let modoLectoraListado = false;
 
   mountNode.innerHTML = `

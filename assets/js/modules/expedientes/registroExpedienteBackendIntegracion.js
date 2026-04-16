@@ -14,6 +14,68 @@ import { appConfig } from "../../config.js";
 let enviandoExpediente = false;
 const expedientesEnProceso = new Map();
 
+function resetearFormularioManual() {
+  const form = document.getElementById("form-expediente");
+  if (!form) return;
+
+  form.numeroExpediente.value = "";
+  form.numeroExpediente.dataset.enterPresionado = "";
+  form.anio.value = "";
+  form.incidente.value = "0";
+  document.getElementById("checkbox-incidente")?.checked && document.getElementById("checkbox-incidente").dispatchEvent(new Event("change"));
+  form.codigoCorte.value = "3101-JR";
+  form.materia.value = "CI";
+  form.numeroJuzgado.value = "01";
+  form.fechaIngreso.value = new Date().toISOString().split("T")[0];
+  form.horaIngreso.value = new Date().toTimeString().slice(0, 5);
+  form.estado.value = "Ingresado";
+  form.ubicacionActual.value = "Estante";
+  form.juzgado.value = "";
+  form.paqueteId.value = "";
+  if (form.codigoLecturaRaw) form.codigoLecturaRaw.value = "";
+  form.observaciones.value = "";
+
+  const badge = form.querySelector("#numero-expediente-chip");
+  if (badge) {
+    badge.textContent = "Pendiente de validar";
+    badge.className = "badge bg-slate-100 text-slate-700 text-xs px-3 py-1 font-semibold";
+  }
+
+  form.numeroExpediente.focus();
+}
+
+function resetearFormularioLectora() {
+  const form = document.getElementById("form-expediente-lectora");
+  const numeroInput = document.getElementById("numero-expediente-lectora");
+
+  if (form) {
+    form.numeroExpediente.value = "";
+    form.numeroJuzgado.value = "01";
+  }
+
+  if (numeroInput) {
+    numeroInput.value = "";
+    numeroInput.dataset.listoParaEnviar = "false";
+    numeroInput.focus();
+  }
+
+  document.getElementById("input-anio").value = "";
+  document.getElementById("input-incidente").value = "0";
+  document.getElementById("input-codigo-corte").value = "";
+  document.getElementById("input-materia").value = "";
+  document.getElementById("input-juzgado").value = "";
+  document.getElementById("input-numero-juzgado").value = "01";
+  document.getElementById("input-codigo-lectura-raw").value = "";
+  document.getElementById("resumen-expediente-completo").textContent = "-";
+  document.getElementById("resumen-juzgado").textContent = "-";
+  document.getElementById("resumen-paquete").textContent = "---";
+  document.getElementById("resumen-ubicacion").textContent = "-";
+  document.getElementById("resumen-estado").textContent = "-";
+
+  const resumenBox = document.getElementById("resumen-lectora");
+  if (resumenBox) resumenBox.classList.add("hidden");
+}
+
 /**
  * Construir payload para enviar al backend
  */
@@ -49,6 +111,7 @@ export function construirPayloadRegistro(formData, usuario) {
 
   return {
     action: "registrar_expediente",
+    codigo_expediente_completo: (formData.codigoLecturaRaw || "").toString().trim(),
     numero_expediente: numeroExp,
     anio: anio,
     incidente: incidente,
@@ -237,72 +300,10 @@ export async function guardarExpedienteAlBackendConConfirmacion(
 
       // Reiniciar formulario si fue manual
       if (!modoLectora) {
-        setTimeout(() => {
-          const form = document.getElementById("form-expediente");
-          if (form) {
-            // LIMPIAR los campos individuales para siguiente registro
-            form.numeroExpediente.value = "";
-            form.numeroExpediente.dataset.enterPresionado = "";
-            form.anio.value = "";
-            form.incidente.value = "0";
-            document.getElementById("checkbox-incidente")?.checked && document.getElementById("checkbox-incidente").dispatchEvent(new Event("change"));
-            form.codigoCorte.value = "3101-JR";
-            form.materia.value = "CI";
-            form.numeroJuzgado.value = "01";
-            form.fechaIngreso.value = new Date().toISOString().split("T")[0];
-            form.horaIngreso.value = new Date().toTimeString().slice(0, 5);
-            form.estado.value = "Ingresado";
-            form.ubicacionActual.value = "Estante";
-            form.juzgado.value = "";
-            form.paqueteId.value = "";
-            form.observaciones.value = "";
-            
-            // Actualizar chip visual
-            const badge = form.querySelector("#numero-expediente-chip");
-            if (badge) {
-              badge.textContent = "Pendiente de validar";
-              badge.className = "badge bg-slate-100 text-slate-700 text-xs px-3 py-1 font-semibold";
-            }
-            
-            // Enfocar en número para siguiente entrada
-            form.numeroExpediente.focus();
-            showToast("✅ Formulario listo para el próximo expediente", "success");
-          }
-        }, 500);
+        resetearFormularioManual();
+        showToast("✅ Formulario listo para el próximo expediente", "success");
       } else {
-        // Si fue lectora, LIMPIAR COMPLETAMENTE todos los datos
-        const form = document.getElementById("form-expediente-lectora");
-        const numeroInput = document.getElementById("numero-expediente-lectora");
-        
-        if (form) {
-          // Resetear todos los campos ocultos a valores por defecto
-          form.numeroExpediente.value = "";
-          form.numeroJuzgado.value = "01";
-        }
-        
-        if (numeroInput) {
-          numeroInput.value = "";
-          numeroInput.dataset.listoParaEnviar = "false"; // Resetear flag
-          numeroInput.focus();
-        }
-        
-        // Limpiar todos los campos ocultos
-        document.getElementById("input-anio").value = "";
-        document.getElementById("input-incidente").value = "0";
-        document.getElementById("input-codigo-corte").value = "";
-        document.getElementById("input-materia").value = "";
-        document.getElementById("input-juzgado").value = "";
-        document.getElementById("input-numero-juzgado").value = "01";
-        
-        // Limpiar resumen
-        document.getElementById("resumen-expediente-completo").textContent = "-";
-        document.getElementById("resumen-juzgado").textContent = "-";
-        document.getElementById("resumen-paquete").textContent = "---";
-        document.getElementById("resumen-ubicacion").textContent = "-";
-        document.getElementById("resumen-estado").textContent = "-";
-        
-        const resumenBox = document.getElementById("resumen-lectora");
-        if (resumenBox) resumenBox.classList.add("hidden");
+        resetearFormularioLectora();
       }
 
       return { success: true };

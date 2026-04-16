@@ -27,38 +27,38 @@ export function renderExpedienteForm(expediente = {}) {
   const determinadorDefault = expediente.numeroJuzgado || "01";
   
   return `
-    <form id="form-expediente" class="space-y-4">
+    <form id="form-expediente" class="space-y-5">
       <input type="hidden" name="id" value="${expediente.id || ""}" />
       
       <!-- 📋 NÚMERO DE EXPEDIENTE - SECCIÓN PRINCIPAL -->
-      <div class="rounded-xl border-2 border-blue-300 bg-gradient-to-r from-blue-50 to-cyan-50 p-6 shadow-md">
-        <div class="flex items-center gap-2 mb-4">
+      <div class="rounded-2xl border-2 border-blue-300 bg-gradient-to-r from-blue-50 via-cyan-50 to-sky-50 p-5 md:p-6 shadow-sm ring-1 ring-blue-100/70">
+        <div class="flex flex-wrap items-center gap-2 mb-4">
           <span class="text-2xl">📋</span>
-          <h3 class="text-base font-bold text-blue-900">Número de Expediente</h3>
-          <div class="ml-auto">
+          <h3 class="text-base md:text-lg font-bold text-blue-900">Número de Expediente</h3>
+          <div class="ml-auto text-right">
             <span id="numero-expediente-chip" class="badge bg-blue-100 text-blue-700 text-xs px-3 py-1 font-semibold">✓ Pendiente</span>
           </div>
         </div>
         
-        <div class="grid grid-cols-12 gap-2 items-end">
+        <div class="grid grid-cols-1 md:grid-cols-12 gap-3 md:gap-2 items-end">
           <!-- NÚMERO -->
-          <div class="col-span-2">
+          <div class="col-span-1 md:col-span-2">
             <label class="text-xs font-bold text-blue-800 uppercase tracking-wide">Número</label>
             <input class="input-base w-full text-center font-mono font-bold text-lg border-2 border-blue-400 focus:border-blue-600 focus:ring-2 focus:ring-blue-200 bg-white" 
               name="numeroExpediente" placeholder="00012" value="${expediente.numeroExpediente ? expediente.numeroExpediente.split('-')[0] : ''}" />
           </div>
-          <div class="col-span-1 flex justify-center text-blue-600 font-bold">—</div>
+          <div class="hidden md:flex md:col-span-1 justify-center text-blue-500 font-bold">—</div>
           
           <!-- AÑO -->
-          <div class="col-span-1">
+          <div class="col-span-1 md:col-span-1">
             <label class="text-xs font-bold text-blue-800 uppercase tracking-wide">Año</label>
             <input class="input-base w-full text-center font-mono font-bold text-lg border-2 border-blue-400 focus:border-blue-600 focus:ring-2 focus:ring-blue-200 bg-white" 
               name="anio" type="number" value="${expediente.anio || ''}" />
           </div>
-          <div class="col-span-1 flex justify-center text-blue-600 font-bold">—</div>
+          <div class="hidden md:flex md:col-span-1 justify-center text-blue-500 font-bold">—</div>
           
           <!-- INCIDENTE CON CHECKBOX -->
-          <div class="col-span-2">
+          <div class="col-span-1 md:col-span-2">
             <div class="flex items-center gap-1 mb-1">
               <label class="text-xs font-bold text-blue-800 uppercase tracking-wide">Incidente</label>
               <input type="checkbox" id="checkbox-incidente" class="w-4 h-4 cursor-pointer border-blue-400 rounded" />
@@ -66,10 +66,10 @@ export function renderExpedienteForm(expediente = {}) {
             <input class="input-base w-full text-center font-mono font-bold text-lg border-2 border-blue-400 focus:border-blue-600 focus:ring-2 focus:ring-blue-200 bg-white" 
               name="incidente" type="number" min="0" max="999" value="${incidenteDefault}" readonly id="input-incidente" />
           </div>
-          <div class="col-span-1 flex justify-center text-blue-600 font-bold">—</div>
+          <div class="hidden md:flex md:col-span-1 justify-center text-blue-500 font-bold">—</div>
           
           <!-- CORTE (Dropdown) -->
-          <div class="col-span-2">
+          <div class="col-span-1 md:col-span-2">
             <label class="text-xs font-bold text-blue-800 uppercase tracking-wide">Corte</label>
             <select class="select-base w-full text-center font-mono font-bold text-lg border-2 border-blue-400 focus:border-blue-600 focus:ring-2 focus:ring-blue-200 bg-white" name="codigoCorte">
               <option value="3101-JR" ${expediente.codigoCorte === '3101-JR' ? 'selected' : ''}>3101-JR</option>
@@ -78,19 +78,19 @@ export function renderExpedienteForm(expediente = {}) {
               <option value="3101-SP" ${expediente.codigoCorte === '3101-SP' ? 'selected' : ''}>3101-SP</option>
             </select>
           </div>
-          <div class="col-span-1 flex justify-center text-blue-600 font-bold">—</div>
+          <div class="hidden md:flex md:col-span-1 justify-center text-blue-500 font-bold">—</div>
           
           <!-- MATERIA (Desde Google Sheets) -->
-          <div class="col-span-2">
+          <div class="col-span-1 md:col-span-2">
             <label class="text-xs font-bold text-blue-800 uppercase tracking-wide">Materia</label>
             <select class="select-base w-full text-center font-mono font-bold text-lg border-2 border-blue-400 focus:border-blue-600 focus:ring-2 focus:ring-blue-200 bg-white" name="materia">
               ${optionList(materias, expediente.materia, 'codigo', 'abreviatura')}
             </select>
           </div>
-          <div class="col-span-1 flex justify-center text-blue-600 font-bold">—</div>
+          <div class="hidden md:flex md:col-span-1 justify-center text-blue-500 font-bold">—</div>
           
           <!-- DETERMINADOR (01-09) -->
-          <div class="col-span-1">
+          <div class="col-span-1 md:col-span-1">
             <label class="text-xs font-bold text-blue-800 uppercase tracking-wide">Det</label>
             <input class="input-base w-full text-center font-mono font-bold text-lg border-2 border-blue-400 focus:border-blue-600 focus:ring-2 focus:ring-blue-200 bg-white" 
               name="numeroJuzgado" type="text" maxlength="2" value="${determinadorDefault}" id="input-determinador" placeholder="01" />
@@ -101,7 +101,7 @@ export function renderExpedienteForm(expediente = {}) {
       </div>
 
       <!-- ⏰ DATOS TEMPORALES -->
-      <div class="rounded-lg border-2 border-purple-300 bg-gradient-to-r from-purple-50 to-pink-50 p-4">
+      <div class="rounded-xl border-2 border-purple-300 bg-gradient-to-r from-purple-50 to-pink-50 p-4 shadow-sm ring-1 ring-purple-100/70">
         <div class="flex items-center gap-2 mb-3">
           <span class="text-xl">⏰</span>
           <h4 class="text-sm font-bold text-purple-900">Ingreso del Expediente</h4>
@@ -135,7 +135,7 @@ export function renderExpedienteForm(expediente = {}) {
       </div>
 
       <!-- 📍 UBICACIÓN Y ESTADO -->
-      <div class="rounded-lg border-2 border-green-300 bg-gradient-to-r from-green-50 to-emerald-50 p-4">
+      <div class="rounded-xl border-2 border-green-300 bg-gradient-to-r from-green-50 to-emerald-50 p-4 shadow-sm ring-1 ring-green-100/70">
         <div class="flex items-center gap-2 mb-3">
           <span class="text-xl">📍</span>
           <h4 class="text-sm font-bold text-green-900">Ubicación y Control</h4>
@@ -157,7 +157,7 @@ export function renderExpedienteForm(expediente = {}) {
       </div>
 
       <!-- 📝 OBSERVACIONES -->
-      <div class="rounded-lg border-2 border-amber-300 bg-gradient-to-r from-amber-50 to-orange-50 p-4">
+      <div class="rounded-xl border-2 border-amber-300 bg-gradient-to-r from-amber-50 to-orange-50 p-4 shadow-sm ring-1 ring-amber-100/70">
         <div class="flex items-center gap-2 mb-2">
           <span class="text-xl">📝</span>
           <label class="text-sm font-bold text-amber-900 uppercase">Observaciones</label>
@@ -168,7 +168,7 @@ export function renderExpedienteForm(expediente = {}) {
 
       <!-- BOTONES -->
       <p id="form-feedback" class="text-sm min-h-5 text-slate-600"></p>
-      <div class="flex flex-wrap gap-3 justify-end pt-3 border-t-2 border-slate-200">
+      <div class="flex flex-wrap gap-3 justify-end pt-4 border-t-2 border-slate-200">
         <button type="button" id="btn-limpiar" class="btn btn-secondary rounded-lg px-5 py-2 font-bold">
           🔄 Limpiar
         </button>
@@ -263,9 +263,21 @@ export function renderFormularioLectora(expediente = {}) {
       <input type="hidden" name="materia" id="input-materia" value="${expediente.materia || "CI"}" />
       <input type="hidden" name="juzgado" id="input-juzgado" value="${expediente.juzgado || ""}" />
       <input type="hidden" name="numeroJuzgado" id="input-numero-juzgado" value="${expediente.numeroJuzgado || "01"}" />
+      <input type="hidden" name="codigoLecturaRaw" id="input-codigo-lectura-raw" value="${expediente.codigoLecturaRaw || ""}" />
       <input type="hidden" name="juzgadoManual" value="" />
-      <input type="hidden" name="fechaIngreso" value="${expediente.fechaIngreso || new Date().toISOString().split('T')[0]}" />
-      <input type="hidden" name="horaIngreso" value="${expediente.horaIngreso || new Date().toTimeString().slice(0, 5)}" />
+      <input type="hidden" name="fechaIngreso" value="${expediente.fechaIngreso || (() => {
+  const now = new Date();
+  const anio = now.getFullYear();
+  const mes = String(now.getMonth() + 1).padStart(2, '0');
+  const dia = String(now.getDate()).padStart(2, '0');
+  return `${anio}-${mes}-${dia}`;
+})()}" />
+      <input type="hidden" name="horaIngreso" value="${expediente.horaIngreso || (() => {
+        const now = new Date();
+        const horas = String(now.getHours()).padStart(2, '0');
+        const minutos = String(now.getMinutes()).padStart(2, '0');
+        return `${horas}:${minutos}`;
+      })()}" />
       <input type="hidden" name="estado" value="${estado}" />
       <input type="hidden" name="ubicacionActual" value="${expediente.ubicacionActual || "Estante"}" />
       <input type="hidden" name="paqueteId" value="${expediente.paqueteId || ""}" />

@@ -313,7 +313,7 @@ function crearExpediente(data) {
   }
 
   // Generar código completo
-  const codigoCompleto = generarCodigoExpediente(
+  const codigoCompleto = data.codigo_expediente_completo || generarCodigoExpediente(
     data.numero_expediente,
     data.anio || new Date().getFullYear().toString(),
     data.tipo_organo || "1",

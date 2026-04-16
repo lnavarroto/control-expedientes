@@ -115,47 +115,47 @@ export async function initRouter() {
     });
   });
 
-  // Setup logout con modal elegante
-  document.getElementById("btn-logout")?.addEventListener("click", () => {
-    const btnLogout = document.getElementById("btn-logout");
-    
-    openModal({
-      title: "🚪 Cerrar Sesión",
-      content: `
-        <div class="space-y-4">
-          <p class="text-base text-slate-700">¿Estás seguro de que deseas cerrar sesión?</p>
-          
-          <div class="bg-amber-50 border border-amber-200 rounded-lg p-3">
-            <p class="text-sm text-amber-800">
-              Se cerrará tu sesión actual y deberás ingresar nuevamente con tu DNI.
-            </p>
+  // Setup logout para sidebar y cabecera
+  const bindLogout = (buttonId) => {
+    const button = document.getElementById(buttonId);
+    if (!button) return;
+
+    button.addEventListener("click", () => {
+      openModal({
+        title: "🚪 Cerrar Sesión",
+        content: `
+          <div class="space-y-4">
+            <p class="text-base text-slate-700">¿Estás seguro de que deseas cerrar sesión?</p>
+            <div class="bg-amber-50 border border-amber-200 rounded-lg p-3">
+              <p class="text-sm text-amber-800">
+                Se cerrará tu sesión actual y deberás ingresar nuevamente con tu DNI.
+              </p>
+            </div>
           </div>
-        </div>
-      `,
-      confirmText: "Sí, cerrar sesión",
-      cancelText: "Cancelar",
-      onConfirm: (close) => {
-        // Añadir animación al botón
-        btnLogout.classList.add("animate-pulse");
-        btnLogout.disabled = true;
-        
-        // Mostrar toast
-        showToast("Cerrando sesión...", "info");
-        
-        // Cerrar modal después de 500ms
-        setTimeout(() => {
-          close();
-          // Redirigir después de 1 segundo más
+        `,
+        confirmText: "Sí, cerrar sesión",
+        cancelText: "Cancelar",
+        onConfirm: (close) => {
+          button.classList.add("animate-pulse");
+          button.disabled = true;
+          showToast("Cerrando sesión...", "info");
+
           setTimeout(() => {
-            redirectToLogin();
+            close();
+            setTimeout(() => {
+              redirectToLogin();
+            }, 500);
           }, 500);
-        }, 500);
-      },
-      onCancel: (close) => {
-        close();
-      }
+        },
+        onCancel: (close) => {
+          close();
+        }
+      });
     });
-  });
+  };
+
+  bindLogout("btn-logout");
+  bindLogout("btn-header-logout");
 
   // Inicializar módulo
   const moduleRoot = document.getElementById("module-root");

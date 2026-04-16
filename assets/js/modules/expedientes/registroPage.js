@@ -1,5 +1,6 @@
 import { renderExpedienteForm, renderFormularioLectora } from "../../components/expedienteForm.js";
 import { openModal } from "../../components/modal.js";
+import { renderTable } from "../../components/table.js";
 import { statusBadge } from "../../components/statusBadge.js";
 import { showToast } from "../../components/toast.js";
 import { expedienteService } from "../../services/expedienteService.js";
@@ -11,6 +12,64 @@ import { formatoFechaHora, horaActual, hoyIso } from "../../utils/formatters.js"
 import { validarIncidente, validarNumeroExpediente } from "../../utils/validators.js";
 import { parsearLectora, extraerCodigoLectora } from "../../utils/lectora.js";
 import { guardarExpedienteAlBackendConConfirmacion } from "./registroExpedienteBackendIntegracion.js";
+
+
+function filaRegistro(item = {}) {
+  const numero = item.numero_expediente || item.numeroExpediente || "-";
+  const fecha = item.fecha_ingreso || item.fechaIngreso || "-";
+  const hora = item.hora_ingreso || item.horaIngreso || "-";
+  const ingreso = (fecha && hora && fecha !== "-" && hora !== "-")
+    ? `${fecha} ${hora}`
+    : (item.fecha_hora_ingreso || formatoFechaHora(item.fechaIngreso, item.horaIngreso) || "-");
+
+  return {
+    id: item.id_expediente || item.id || "-",
+    numero,
+    juzgado: item.juzgado_texto || item.juzgado || "-",
+    ingreso,
+    estado: item.id_estado || item.estado || "-",
+    usuario: item.registrado_por || "-"
+  };
+}
+
+function abrirModalListadoRegistros(registros = []) {
+  const root = document.getElementById("modal-root");
+  if (!root) return;
+
+  const rows = registros.map(filaRegistro);
+  const tablaHtml = renderTable({
+    columns: [
+      { key: "id", label: "ID" },
+      { key: "numero", label: "Numero Expediente" },
+      { key: "juzgado", label: "Juzgado" },
+      { key: "ingreso", label: "Fecha / Hora" },
+      { key: "estado", label: "Estado" },
+      { key: "usuario", label: "Registrado por" }
+    ],
+    rows,
+    emptyText: "No hay registros para mostrar"
+  });
+
+  const modalId = `modal-registros-${Date.now()}`;
+  root.innerHTML = `
+    <div class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" id="${modalId}">
+      <div class="card-surface w-full max-w-6xl p-4 md:p-6 space-y-4 max-h-[90vh] overflow-hidden">
+        <div class="flex items-center justify-between border-b border-slate-200 pb-3">
+          <h3 class="font-bold text-lg text-slate-900">Listado de registros</h3>
+          <button id="btn-cerrar-modal-registros" class="text-slate-500 hover:text-slate-700 text-2xl leading-none">&times;</button>
+        </div>
+        <p class="text-sm text-slate-600">Total: <strong>${rows.length}</strong> registro(s)</p>
+        <div class="overflow-auto max-h-[68vh] pr-1">${tablaHtml}</div>
+      </div>
+    </div>
+  `;
+
+  const close = () => document.getElementById(modalId)?.remove();
+  document.getElementById("btn-cerrar-modal-registros")?.addEventListener("click", close);
+  document.getElementById(modalId)?.addEventListener("click", (e) => {
+    if (e.target?.id === modalId) close();
+  });
+}
 
 
 
@@ -161,6 +220,7 @@ export function initRegistroPage({ mountNode }) {
           <p class="text-sm text-slate-500">Completa el formulario para registrar un nuevo expediente.</p>
         </div>
         <div class="flex gap-2">
+          <button id="btn-listar-registros" class="btn btn-secondary" title="Ver todos los registros">👁️ Listar</button>
           <button id="btn-modo-manual" class="btn btn-secondary" title="Entrada manual con teclado">🖱️ Manual</button>
           <button id="btn-modo-lectora" class="btn btn-secondary" title="Presiona Enter para completar con lectora">📱 Lectora</button>
         </div>
@@ -174,6 +234,22 @@ export function initRegistroPage({ mountNode }) {
   setupFormManual();
 
   // ============ BOTONES DE MODO ============
+  document.getElementById("btn-listar-registros")?.addEventListener("click", async () => {
+    showToast("Cargando registros...", "info");
+
+    try {
+      const resultado = await expedienteService.listarDelBackend({ forceRefresh: true });
+      const registros = resultado?.success && Array.isArray(resultado.data)
+        ? resultado.data
+        : expedienteService.listar();
+
+      abrirModalListadoRegistros(registros);
+    } catch (error) {
+      console.warn("⚠️ Error cargando registros para modal:", error);
+      abrirModalListadoRegistros(expedienteService.listar());
+    }
+  });
+
   document.getElementById("btn-modo-manual")?.addEventListener("click", () => {
     modoLectora = false;
     const formContainer = document.getElementById("form-container");
@@ -543,6 +619,7 @@ export function initRegistroPage({ mountNode }) {
       document.getElementById("input-incidente").value = parsed.incidente;
       document.getElementById("input-codigo-corte").value = parsed.codigoCorte;
       document.getElementById("input-materia").value = parsed.materia;
+      document.getElementById("input-codigo-lectura-raw").value = parsed.codigoLecturaRaw || "";
       
       // Guardar juzgado específico detectado
       document.getElementById("input-juzgado").value = juzgadoNombre;
@@ -615,6 +692,7 @@ export function initRegistroPage({ mountNode }) {
     document.getElementById("btn-limpiar-lectora-btn")?.addEventListener("click", () => {
       numeroInput.value = "";
       numeroInput.dataset.listoParaEnviar = "false";
+      document.getElementById("input-codigo-lectura-raw").value = "";
       resumenBox.classList.add("hidden");
       actualizarChipLectora("pendiente");
       btnGuardar.disabled = true;
