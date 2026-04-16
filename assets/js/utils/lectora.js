@@ -47,9 +47,19 @@ export function parsearLectora(codigo = "") {
     
     // Código corte: Fijo
     const codigoCorte = "3101";
-    
-    // Incidente: Fijo
-    const incidente = "0";
+
+    // Incidente/Cautelar:
+    // Se toma el bloque de 3 dígitos ubicado antes de los últimos 3 del código.
+    // Ejemplos: 000 => principal (incidente 0), 071 => incidente 71, 015 => incidente 15.
+    const bloqueIncidente = codigoValido.substring(
+      Math.max(0, codigoValido.length - 6),
+      Math.max(0, codigoValido.length - 3)
+    );
+    const incidenteNumero = /^\d{3}$/.test(bloqueIncidente)
+      ? parseInt(bloqueIncidente, 10)
+      : 0;
+    const incidente = incidenteNumero === 0 ? "0" : String(incidenteNumero);
+    const tipoRegistro = incidenteNumero === 0 ? "PRINCIPAL" : "CAUTELAR";
     
     // Tipo Juzgado: Pos 15-16 (Excel) = substring(14, 16) en JS
     // ✅ Fórmula simple del usuario: SI(EXTRAE(A42;15;2)="32";"SP";"JR")
@@ -89,6 +99,8 @@ export function parsearLectora(codigo = "") {
       tipoJuzgado,                // JR o SP
       materia,                    // LA o CI
       numeroJuzgado: determinador, // Determinador para validar
+      bloqueIncidente,
+      tipoRegistro,
       fuente: "lectora",
       codigoLecturaRaw: codigoValido  // El código de barras extraído
     };

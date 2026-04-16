@@ -713,8 +713,11 @@ export function initRegistroPage({ mountNode }) {
       document.getElementById("resumen-ubicacion").textContent = form.ubicacionActual.value || "Estante";
       document.getElementById("resumen-estado").textContent = form.estado.value || "Ingresado";
 
-      // Mostrar mensaje con determinador
-      showToast(`✅ Detectado: ${juzgadoNombre} (determinador: ${parsed.numeroJuzgado})`, "success");
+      // Mostrar mensaje incluyendo tipo de registro (principal/cautelar) detectado por lectora
+      showToast(
+        `✅ ${parsed.tipoRegistro}: ${parsed.incidente} · ${juzgadoNombre} (det: ${parsed.numeroJuzgado})`,
+        "success"
+      );
 
       resumenBox.classList.remove("hidden");
       actualizarChipLectora("valido");
