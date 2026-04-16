@@ -37,18 +37,14 @@ function abrirModalListadoRegistros(registros = []) {
   if (!root) return;
 
   const rows = registros.map(filaRegistro);
-  const tablaHtml = renderTable({
-    columns: [
-      { key: "id", label: "ID" },
-      { key: "numero", label: "Numero Expediente" },
-      { key: "juzgado", label: "Juzgado" },
-      { key: "ingreso", label: "Fecha / Hora" },
-      { key: "estado", label: "Estado" },
-      { key: "usuario", label: "Registrado por" }
-    ],
-    rows,
-    emptyText: "No hay registros para mostrar"
-  });
+  const columns = [
+    { key: "id", label: "ID" },
+    { key: "numero", label: "Numero Expediente" },
+    { key: "juzgado", label: "Juzgado" },
+    { key: "ingreso", label: "Fecha / Hora" },
+    { key: "estado", label: "Estado" },
+    { key: "usuario", label: "Registrado por" }
+  ];
 
   const modalId = `modal-registros-${Date.now()}`;
   root.innerHTML = `
@@ -58,11 +54,65 @@ function abrirModalListadoRegistros(registros = []) {
           <h3 class="font-bold text-lg text-slate-900">Listado de registros</h3>
           <button id="btn-cerrar-modal-registros" class="text-slate-500 hover:text-slate-700 text-2xl leading-none">&times;</button>
         </div>
-        <p class="text-sm text-slate-600">Total: <strong>${rows.length}</strong> registro(s)</p>
-        <div class="overflow-auto max-h-[68vh] pr-1">${tablaHtml}</div>
+        <div class="grid gap-2 md:grid-cols-[1fr_auto] md:items-end">
+          <div>
+            <label for="filtro-numero-expediente" class="text-xs font-semibold text-slate-600 uppercase tracking-wide">Filtrar por numero de expediente</label>
+            <input id="filtro-numero-expediente" class="input-base w-full" placeholder="Ej: 00012-2026-1-3101-CI-01" />
+          </div>
+          <div class="flex gap-2">
+            <button id="btn-filtrar-numero-expediente" class="btn btn-primary">🔎 Filtrar</button>
+            <button id="btn-limpiar-filtro-expediente" class="btn btn-secondary">🧹 Limpiar</button>
+          </div>
+        </div>
+        <p id="total-registros-modal" class="text-sm text-slate-600">Total: <strong>${rows.length}</strong> registro(s)</p>
+        <div id="tabla-registros-modal" class="overflow-auto max-h-[68vh] pr-1"></div>
       </div>
     </div>
   `;
+
+  const tablaContainer = document.getElementById("tabla-registros-modal");
+  const totalEl = document.getElementById("total-registros-modal");
+  const inputFiltro = document.getElementById("filtro-numero-expediente");
+  const btnFiltrar = document.getElementById("btn-filtrar-numero-expediente");
+  const btnLimpiar = document.getElementById("btn-limpiar-filtro-expediente");
+
+  const renderFiltrado = () => {
+    const valorFiltro = (inputFiltro?.value || "").trim().toUpperCase();
+    const rowsFiltradas = !valorFiltro
+      ? rows
+      : rows.filter((row) => String(row.numero || "").toUpperCase().includes(valorFiltro));
+
+    if (totalEl) {
+      totalEl.innerHTML = `Total: <strong>${rowsFiltradas.length}</strong> registro(s)`;
+    }
+
+    if (tablaContainer) {
+      tablaContainer.innerHTML = renderTable({
+        columns,
+        rows: rowsFiltradas,
+        emptyText: valorFiltro
+          ? "No hay registros que coincidan con el numero de expediente"
+          : "No hay registros para mostrar"
+      });
+    }
+  };
+
+  btnFiltrar?.addEventListener("click", renderFiltrado);
+  btnLimpiar?.addEventListener("click", () => {
+    if (inputFiltro) {
+      inputFiltro.value = "";
+      inputFiltro.focus();
+    }
+    renderFiltrado();
+  });
+  inputFiltro?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      renderFiltrado();
+    }
+  });
+
+  renderFiltrado();
 
   const close = () => document.getElementById(modalId)?.remove();
   document.getElementById("btn-cerrar-modal-registros")?.addEventListener("click", close);
@@ -149,6 +199,13 @@ function actualizarEstadoVisual(form) {
 
 function guardarConConfirmacion(form, mountNode, modoLectora = false) {
   const data = parseForm(form);
+  const fechaHoraRegistro = {
+    fechaIngreso: hoyIso(),
+    horaIngreso: horaActual()
+  };
+
+  if (form.fechaIngreso) form.fechaIngreso.value = fechaHoraRegistro.fechaIngreso;
+  if (form.horaIngreso) form.horaIngreso.value = fechaHoraRegistro.horaIngreso;
 
   if (!validarNumeroExpediente(data.numeroExpediente)) {
     showToast("Corrija el formato del número de expediente.", "error");
@@ -198,8 +255,8 @@ function guardarConConfirmacion(form, mountNode, modoLectora = false) {
       id_juzgado: form.juzgado?.value || "",
       juzgado: data.juzgado,
       numeroJuzgado: determinador, // ✅ Pasar el determinador ya validado/corregido
-      fechaIngreso: data.fechaIngreso,
-      horaIngreso: data.horaIngreso,
+      fechaIngreso: fechaHoraRegistro.fechaIngreso,
+      horaIngreso: fechaHoraRegistro.horaIngreso,
       observaciones: data.observaciones
     },
     mountNode,
@@ -306,6 +363,20 @@ export function initRegistroPage({ mountNode }) {
   function setupFormManual() {
     const form = document.getElementById("form-expediente");
     if (!form) return;
+
+    document.getElementById("btn-ayuda-fecha-hora")?.addEventListener("click", () => {
+      openModal({
+        title: "Ayuda de registro",
+        content: `
+          <div class="space-y-3 text-sm text-slate-700">
+            <p class="font-semibold text-slate-900">La fecha y hora del registro se generan automaticamente.</p>
+            <p>No necesitas seleccionarlas en el formulario.</p>
+            <p>Se toman al momento de presionar <strong>Guardar</strong>.</p>
+          </div>
+        `,
+        confirmText: "Entendido"
+      });
+    });
 
     const numeroInput = form.numeroExpediente;
     const checkboxIncidente = document.getElementById("checkbox-incidente");

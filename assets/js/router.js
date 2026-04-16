@@ -16,6 +16,7 @@ import { initPaquetesPage } from "./modules/paquetes/paquetesPage.js";
 import { initMovimientosPage } from "./modules/movimientos/movimientosPage.js";
 import { initActualizacionPage } from "./modules/actualizacion/actualizacionPage.js";
 import { initConfiguacionPage } from "./modules/configuracion/configuracionPage.js";
+import { addIconsToButtons } from "./utils/buttonIcons.js";
 
 const ROUTES = {
   dashboard: { title: "Dashboard Institucional", init: initDashboardPage },
@@ -168,9 +169,13 @@ export async function initRouter() {
     // Si es una Promise, esperar a que se resuelva
     if (result instanceof Promise) {
       result
-        .then(() => console.log(`✅ Módulo ${page} cargado exitosamente`))
+        .then(() => {
+          addIconsToButtons(moduleRoot);
+          console.log(`✅ Módulo ${page} cargado exitosamente`);
+        })
         .catch(err => console.error(`❌ Error cargando ${page}:`, err));
     } else {
+      addIconsToButtons(moduleRoot);
       console.log(`✅ Módulo ${page} cargado exitosamente`);
     }
   } else {

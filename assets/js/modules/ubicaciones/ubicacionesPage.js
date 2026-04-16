@@ -90,8 +90,8 @@ export function initUbicacionesPage({ mountNode, sesion }) {
           <input class="input-base" name="observacion" placeholder="Detalle del movimiento" />
         </div>
         <div class="md:col-span-2 flex justify-end gap-2">
-          <button id="btn-limpiar-ubi" class="btn btn-secondary" type="button">Limpiar</button>
-          <button class="btn btn-primary" type="submit">Registrar movimiento</button>
+          <button id="btn-limpiar-ubi" class="btn btn-secondary text-sm md:text-base px-5 py-2.5" type="button">Limpiar</button>
+          <button class="btn btn-primary text-sm md:text-base px-5 py-2.5" type="submit">Registrar movimiento</button>
         </div>
       </form>
     </section>

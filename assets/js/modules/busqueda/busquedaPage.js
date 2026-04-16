@@ -390,8 +390,8 @@ export async function initBusquedaPage({ mountNode }) {
         <input id="f-paquete" class="input-base" placeholder="Código de paquete" />
         <input id="f-fecha" type="date" class="input-base md:col-span-2" />
         <div class="md:col-span-3 flex justify-end gap-3">
-          <button id="btn-limpiar-busqueda" class="btn btn-secondary">Limpiar</button>
           <button id="btn-ejecutar-busqueda" class="btn btn-primary">Buscar expedientes</button>
+          <button id="btn-limpiar-busqueda" class="btn btn-secondary">Limpiar</button>
         </div>
       </div>
     </section>

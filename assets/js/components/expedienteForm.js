@@ -27,12 +27,27 @@ export function renderExpedienteForm(expediente = {}) {
   const determinadorDefault = expediente.numeroJuzgado || "01";
   
   return `
-    <form id="form-expediente" class="space-y-5">
+    <form id="form-expediente" class="space-y-3">
       <input type="hidden" name="id" value="${expediente.id || ""}" />
+      <input type="hidden" name="fechaIngreso" value="${expediente.fechaIngreso || ""}" />
+      <input type="hidden" name="horaIngreso" value="${expediente.horaIngreso || ""}" />
+
+      <div class="flex justify-end">
+        <button
+          type="button"
+          id="btn-ayuda-fecha-hora"
+          data-no-auto-icon="1"
+          class="h-8 w-8 inline-flex items-center justify-center rounded-full border border-sky-300 bg-sky-50 text-sky-700 text-sm font-bold"
+          title="Necesitas ayuda"
+          aria-label="Necesitas ayuda"
+        >
+          ?
+        </button>
+      </div>
       
       <!-- 📋 NÚMERO DE EXPEDIENTE - SECCIÓN PRINCIPAL -->
-      <div class="rounded-2xl border-2 border-blue-300 bg-gradient-to-r from-blue-50 via-cyan-50 to-sky-50 p-5 md:p-6 shadow-sm ring-1 ring-blue-100/70">
-        <div class="flex flex-wrap items-center gap-2 mb-4">
+      <div class="rounded-2xl border-2 border-blue-300 bg-gradient-to-r from-blue-50 via-cyan-50 to-sky-50 p-4 md:p-4 shadow-sm ring-1 ring-blue-100/70">
+        <div class="flex flex-wrap items-center gap-2 mb-2">
           <span class="text-2xl">📋</span>
           <h3 class="text-base md:text-lg font-bold text-blue-900">Número de Expediente</h3>
           <div class="ml-auto text-right">
@@ -97,50 +112,30 @@ export function renderExpedienteForm(expediente = {}) {
           </div>
         </div>
         
-        <p id="numero-expediente-feedback" class="text-xs text-blue-600 mt-3 font-medium">Ingrese el número para activar autocompletado</p>
+        <p id="numero-expediente-feedback" class="text-xs text-blue-600 mt-2 font-medium">Ingrese el número para activar autocompletado</p>
       </div>
 
-      <!-- ⏰ DATOS TEMPORALES -->
-      <div class="rounded-xl border-2 border-purple-300 bg-gradient-to-r from-purple-50 to-pink-50 p-4 shadow-sm ring-1 ring-purple-100/70">
-        <div class="flex items-center gap-2 mb-3">
-          <span class="text-xl">⏰</span>
-          <h4 class="text-sm font-bold text-purple-900">Ingreso del Expediente</h4>
+      <!-- 📍 UBICACIÓN Y ESTADO -->
+      <div class="rounded-xl border-2 border-green-300 bg-gradient-to-r from-green-50 to-emerald-50 p-3 shadow-sm ring-1 ring-green-100/70">
+        <div class="flex items-center gap-2 mb-2">
+          <span class="text-xl">📍</span>
+          <h4 class="text-sm font-bold text-green-900">Ubicación y Control</h4>
         </div>
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
           <div>
-            <label class="text-xs font-bold text-purple-800 uppercase">Fecha</label>
-            <input type="date" class="input-base w-full border-2 border-purple-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-200" 
-              name="fechaIngreso" value="${expediente.fechaIngreso || ''}" required />
-          </div>
-          <div>
-            <label class="text-xs font-bold text-purple-800 uppercase">Hora</label>
-            <input type="time" class="input-base w-full border-2 border-purple-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-200" 
-              name="horaIngreso" value="${expediente.horaIngreso || ''}" required />
-          </div>
-          <div>
-            <label class="text-xs font-bold text-purple-800 uppercase">Juzgado/Sala</label>
-            <select class="select-base w-full border-2 border-purple-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-200" name="juzgado">
+            <label class="text-xs font-bold text-green-800 uppercase">Juzgado/Sala</label>
+            <select class="select-base w-full border-2 border-green-300 focus:border-green-500 focus:ring-2 focus:ring-green-200" name="juzgado">
               <option value="">-- Seleccionar --</option>
               ${optionList(juzgados, expediente.juzgado, 'nombre', 'nombre')}
             </select>
           </div>
           <div>
-            <label class="text-xs font-bold text-purple-800 uppercase">Paquete</label>
-            <select class="select-base w-full border-2 border-purple-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-200" name="paqueteId">
+            <label class="text-xs font-bold text-green-800 uppercase">Paquete</label>
+            <select class="select-base w-full border-2 border-green-300 focus:border-green-500 focus:ring-2 focus:ring-green-200" name="paqueteId">
               <option value="">-- Opcional --</option>
               ${optionList(paquetes, expediente.paqueteId, 'id', 'codigo')}
             </select>
           </div>
-        </div>
-      </div>
-
-      <!-- 📍 UBICACIÓN Y ESTADO -->
-      <div class="rounded-xl border-2 border-green-300 bg-gradient-to-r from-green-50 to-emerald-50 p-4 shadow-sm ring-1 ring-green-100/70">
-        <div class="flex items-center gap-2 mb-3">
-          <span class="text-xl">📍</span>
-          <h4 class="text-sm font-bold text-green-900">Ubicación y Control</h4>
-        </div>
-        <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
           <div>
             <label class="text-xs font-bold text-green-800 uppercase">Ubicación</label>
             <select class="select-base w-full border-2 border-green-300 focus:border-green-500 focus:ring-2 focus:ring-green-200" name="ubicacionActual">${optionList(UBICACIONES_PREDETERMINADAS, expediente.ubicacionActual)}</select>
@@ -157,18 +152,18 @@ export function renderExpedienteForm(expediente = {}) {
       </div>
 
       <!-- 📝 OBSERVACIONES -->
-      <div class="rounded-xl border-2 border-amber-300 bg-gradient-to-r from-amber-50 to-orange-50 p-4 shadow-sm ring-1 ring-amber-100/70">
+      <div class="rounded-xl border-2 border-amber-300 bg-gradient-to-r from-amber-50 to-orange-50 p-3 shadow-sm ring-1 ring-amber-100/70">
         <div class="flex items-center gap-2 mb-2">
           <span class="text-xl">📝</span>
           <label class="text-sm font-bold text-amber-900 uppercase">Observaciones</label>
         </div>
         <textarea class="textarea-base w-full border-2 border-amber-300 focus:border-amber-500 focus:ring-2 focus:ring-amber-200" 
-          rows="2" name="observaciones" placeholder="Notas adicionales sobre el expediente...">${expediente.observaciones || ''}</textarea>
+          rows="1" name="observaciones" placeholder="Notas adicionales sobre el expediente...">${expediente.observaciones || ''}</textarea>
       </div>
 
       <!-- BOTONES -->
       <p id="form-feedback" class="text-sm min-h-5 text-slate-600"></p>
-      <div class="flex flex-wrap gap-3 justify-end pt-4 border-t-2 border-slate-200">
+      <div class="sticky bottom-0 z-20 bg-white/95 backdrop-blur border-t-2 border-slate-200 py-3 px-1 flex flex-wrap gap-3 justify-end">
         <button type="button" id="btn-limpiar" class="btn btn-secondary rounded-lg px-5 py-2 font-bold">
           🔄 Limpiar
         </button>

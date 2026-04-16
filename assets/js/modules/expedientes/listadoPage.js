@@ -155,6 +155,7 @@ function renderFiltersPanel(data) {
             <option value="25">25</option>
           </select>
         </label>
+        <button id="btn-buscar-filtros" class="btn btn-primary">🔎 Buscar</button>
         <button id="btn-limpiar-filtros" class="btn btn-secondary">Limpiar filtros</button>
       </div>
     </section>
@@ -661,6 +662,12 @@ export function initListadoPage({ mountNode }) {
     page = 1;
     renderResults();
     showToast("Filtros reiniciados", "info");
+  });
+
+  document.getElementById("btn-buscar-filtros")?.addEventListener("click", () => {
+    page = 1;
+    renderResults();
+    showToast("Búsqueda aplicada", "info");
   });
 
   document.getElementById("page-size")?.addEventListener("change", (event) => {

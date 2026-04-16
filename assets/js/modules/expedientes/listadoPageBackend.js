@@ -199,7 +199,7 @@ function renderPaginacion(paginaActual, totalPaginas) {
 /**
  * Renderizar panel de filtros
  */
-function renderPanelFiltradores(expedientes) {
+function renderPanelFiltradores(expedientes, filtros = {}) {
   if (!expedientes || expedientes.length === 0) {
     return `
       <div class="card-surface p-4 text-center opacity-50">
@@ -232,15 +232,45 @@ function renderPanelFiltradores(expedientes) {
     )
   ];
 
+  const filtrosActivos = {
+    materia: filtros.materia || "",
+    juzgado: filtros.juzgado || "",
+    estado: filtros.estado || "",
+    texto: filtros.texto || ""
+  };
+
+  const esc = (valor = "") => String(valor)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+
   const optionList = (items, mapFn = i => i) => {
     return ["<option value=''>-- Todos --"]
       .concat(
-        items.map(item => 
-          `<option value="${item}">${mapFn(item)}</option>`
+        items.map(item => {
+          const selected = String(item) === String(filtrosActivos.materia) || String(item) === String(filtrosActivos.juzgado) || String(item) === String(filtrosActivos.estado)
+            ? "selected"
+            : "";
+          return `<option value="${esc(item)}" ${selected}>${esc(mapFn(item))}</option>`;
+        }
         )
       )
       .join("");
   };
+
+  const optionListMateria = ["<option value=''>-- Todos --</option>"]
+    .concat(materias.map((item) => `<option value="${esc(item)}" ${String(item) === String(filtrosActivos.materia) ? "selected" : ""}>${esc(obtenerNombreMateria(item))}</option>`))
+    .join("");
+
+  const optionListJuzgado = ["<option value=''>-- Todos --</option>"]
+    .concat(juzgados.map((item) => `<option value="${esc(item)}" ${String(item) === String(filtrosActivos.juzgado) ? "selected" : ""}>${esc(item)}</option>`))
+    .join("");
+
+  const optionListEstado = ["<option value=''>-- Todos --</option>"]
+    .concat(estados.map((item) => `<option value="${esc(item)}" ${String(item) === String(filtrosActivos.estado) ? "selected" : ""}>${esc(obtenerNombreEstado(item))}</option>`))
+    .join("");
 
   return `
     <div class="card-surface p-4 space-y-3 bg-gradient-to-br from-slate-50 to-slate-100">
@@ -250,21 +280,21 @@ function renderPanelFiltradores(expedientes) {
         <div>
           <label class="text-xs font-bold text-slate-600 uppercase block mb-1">Materia</label>
           <select id="filtro-materia" class="w-full border border-slate-300 rounded px-2 py-1 text-sm focus:border-blue-500">
-            ${optionList(materias, m => obtenerNombreMateria(m))}
+            ${optionListMateria}
           </select>
         </div>
         
         <div>
           <label class="text-xs font-bold text-slate-600 uppercase block mb-1">Juzgado</label>
           <select id="filtro-juzgado" class="w-full border border-slate-300 rounded px-2 py-1 text-sm focus:border-blue-500">
-            ${optionList(juzgados)}
+            ${optionListJuzgado}
           </select>
         </div>
         
         <div>
           <label class="text-xs font-bold text-slate-600 uppercase block mb-1">Estado</label>
           <select id="filtro-estado" class="w-full border border-slate-300 rounded px-2 py-1 text-sm focus:border-blue-500">
-            ${optionList(estados, e => obtenerNombreEstado(e))}
+            ${optionListEstado}
           </select>
         </div>
       </div>
@@ -272,12 +302,12 @@ function renderPanelFiltradores(expedientes) {
       <div>
         <label class="text-xs font-bold text-slate-600 uppercase block mb-1">Búsqueda General</label>
         <input id="filtro-texto" type="text" class="w-full border border-slate-300 rounded px-2 py-1 text-sm focus:border-blue-500" 
-          placeholder="Código, número o registrado por..." />
+          placeholder="Código, número o registrado por..." value="${esc(filtrosActivos.texto)}" />
       </div>
 
       <div class="flex gap-2 justify-end">
-        <button id="btn-filtrar" class="btn btn-primary text-xs">🔍 Filtrar</button>
-        <button id="btn-limpiar-filtros" class="btn btn-secondary text-xs">✕ Limpiar</button>
+        <button id="btn-filtrar" class="btn btn-primary text-sm md:text-base px-5 py-2.5">🔍 Filtrar</button>
+        <button id="btn-limpiar-filtros" class="btn btn-secondary text-sm md:text-base px-5 py-2.5">🧹 Limpiar</button>
       </div>
     </div>
   `;
@@ -351,6 +381,12 @@ function renderListadoExpedientes(expedientes, mountNode) {
   let expedientesFiltrados = [...expedientes];
   let paginaActual = 1;
   const itemsPorPagina = 10;
+  let filtrosActivos = {
+    materia: "",
+    juzgado: "",
+    estado: "",
+    texto: ""
+  };
 
   const renderHTML = () => {
     const resultado = renderTablaExpedientes(expedientesFiltrados, paginaActual, itemsPorPagina);
@@ -366,7 +402,7 @@ function renderListadoExpedientes(expedientes, mountNode) {
           <button id="btn-recargar" class="btn btn-secondary">🔄 Recargar</button>
         </div>
 
-        ${renderPanelFiltradores(expedientes)}
+        ${renderPanelFiltradores(expedientes, filtrosActivos)}
 
         <div class="mt-4">
           ${resultado.html}
@@ -533,6 +569,36 @@ function renderListadoExpedientes(expedientes, mountNode) {
    * Configurar event listeners
    */
   function setupEventListeners() {
+    const obtenerFiltrosUI = () => ({
+      materia: document.getElementById("filtro-materia")?.value || "",
+      juzgado: document.getElementById("filtro-juzgado")?.value || "",
+      estado: document.getElementById("filtro-estado")?.value || "",
+      texto: document.getElementById("filtro-texto")?.value || ""
+    });
+
+    const aplicarFiltros = ({ mostrarToast = true } = {}) => {
+      filtrosActivos = obtenerFiltrosUI();
+      const filtroTexto = (filtrosActivos.texto || "").toLowerCase();
+
+      expedientesFiltrados = expedientes.filter(exp => {
+        const cumpleMateria = !filtrosActivos.materia || exp.codigo_materia === filtrosActivos.materia;
+        const cumpleJuzgado = !filtrosActivos.juzgado || exp.juzgado_texto === filtrosActivos.juzgado || exp.id_juzgado == filtrosActivos.juzgado;
+        const cumpleEstado = !filtrosActivos.estado || exp.id_estado == filtrosActivos.estado;
+        const cumpleTexto = !filtroTexto || JSON.stringify(exp).toLowerCase().includes(filtroTexto);
+
+        return cumpleMateria && cumpleJuzgado && cumpleEstado && cumpleTexto;
+      });
+
+      const resultsText = expedientesFiltrados.length === 0
+        ? "Sin resultados"
+        : `${expedientesFiltrados.length} expediente${expedientesFiltrados.length !== 1 ? "s" : ""}`;
+
+      paginaActual = 1;
+      if (mostrarToast) showToast(`🔍 ${resultsText}`, "info");
+      mountNode.innerHTML = renderHTML();
+      setupEventListeners();
+    };
+
     // Event listeners para botones de ver detalles
     document.querySelectorAll(".btn-ver-detalles").forEach(btn => {
       btn.addEventListener("click", () => {
@@ -607,36 +673,24 @@ function renderListadoExpedientes(expedientes, mountNode) {
 
     // Filtrar expedientes
     document.getElementById("btn-filtrar")?.addEventListener("click", () => {
-      const filtroMateria = document.getElementById("filtro-materia")?.value || "";
-      const filtroJuzgado = document.getElementById("filtro-juzgado")?.value || "";
-      const filtroEstado = document.getElementById("filtro-estado")?.value || "";
-      const filtroTexto = document.getElementById("filtro-texto")?.value.toLowerCase() || "";
+      aplicarFiltros({ mostrarToast: true });
+    });
 
-      expedientesFiltrados = expedientes.filter(exp => {
-        const cumpleMateria = !filtroMateria || exp.codigo_materia === filtroMateria;
-        const cumpleJuzgado = !filtroJuzgado || exp.juzgado_texto === filtroJuzgado || exp.id_juzgado == filtroJuzgado;
-        const cumpleEstado = !filtroEstado || exp.id_estado == filtroEstado;
-        const cumpleTexto = !filtroTexto || JSON.stringify(exp).toLowerCase().includes(filtroTexto);
-
-        return cumpleMateria && cumpleJuzgado && cumpleEstado && cumpleTexto;
-      });
-
-      const resultsText = expedientesFiltrados.length === 0 
-        ? "Sin resultados" 
-        : `${expedientesFiltrados.length} expediente${expedientesFiltrados.length !== 1 ? 's' : ''}`;
-      
-      paginaActual = 1; // Resetear a primera página al filtrar
-      showToast(`🔍 ${resultsText}`, "info");
-      mountNode.innerHTML = renderHTML();
-      setupEventListeners();
+    document.getElementById("filtro-texto")?.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        aplicarFiltros({ mostrarToast: true });
+      }
     });
 
     // Limpiar filtros
     document.getElementById("btn-limpiar-filtros")?.addEventListener("click", () => {
-      document.getElementById("filtro-materia").value = "";
-      document.getElementById("filtro-juzgado").value = "";
-      document.getElementById("filtro-estado").value = "";
-      document.getElementById("filtro-texto").value = "";
+      filtrosActivos = {
+        materia: "",
+        juzgado: "",
+        estado: "",
+        texto: ""
+      };
       expedientesFiltrados = [...expedientes];
       paginaActual = 1; // Resetear a primera página
       showToast("🧹 Filtros limpios", "info");

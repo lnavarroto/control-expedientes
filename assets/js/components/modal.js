@@ -1,3 +1,5 @@
+import { addIconsToButtons } from "../utils/buttonIcons.js";
+
 export function openModal({ title, content, onConfirm, onCancel, confirmText = "Guardar", cancelText = "Cancelar" }) {
   const root = document.getElementById("modal-root");
   if (!root) return;
@@ -39,6 +41,8 @@ export function openModal({ title, content, onConfirm, onCancel, confirmText = "
   `;
 
   const modal = document.getElementById(modalId);
+  addIconsToButtons(modal);
+
   const close = () => {
     modal?.remove();
   };
