@@ -267,5 +267,42 @@ export const expedienteService = {
       console.error("Error obteniendo expediente:", error);
       return { success: false, message: error.message };
     }
+  },
+
+  /**
+   * Actualizar expediente en el backend
+   */
+  async actualizarEnBackend(data) {
+    try {
+      const url = `${appConfig.googleSheetURL}?action=actualizar_expediente`;
+      const payload = {
+        action: "actualizar_expediente",
+        ...data
+      };
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(payload),
+        cache: "no-store"
+      });
+
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+
+      const resultado = await response.json();
+
+      if (resultado.success) {
+        // Limpiar cache para forzar refresco
+        this.limpiarCacheBackend();
+        console.log("✅ Expediente actualizado en el backend");
+        return { success: true, data: resultado.data };
+      }
+      
+      return { success: false, message: resultado.error || "Error al actualizar" };
+    } catch (error) {
+      console.error("Error actualizando expediente:", error);
+      return { success: false, message: error.message };
+    }
   }
 };

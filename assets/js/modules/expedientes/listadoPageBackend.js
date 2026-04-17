@@ -6,7 +6,9 @@ import { openModal } from "../../components/modal.js";
 import { showToast } from "../../components/toast.js";
 import { expedienteService } from "../../services/expedienteService.js";
 import { estadoService } from "../../services/estadoService.js";
+import { juzgadoService } from "../../services/juzgadoService.js";
 import { formatoFechaHora } from "../../utils/formatters.js";
+import { appConfig } from "../../config.js";
 import {
   obtenerNombreEstado,
   obtenerColorEstado,
@@ -416,21 +418,56 @@ function renderListadoExpedientes(expedientes, mountNode) {
   /**
    * Abrir modal para editar expediente
    */
-  function abrirModalEditar(expediente) {
+  async function abrirModalEditar(expediente) {
     const formateado = formatearExpediente(expediente);
+    const baseURL = appConfig.googleSheetURL;
+
+    // --- Cargar catálogos dinámicamente desde Apps Script ---
+    async function fetchCatalogo(action) {
+      try {
+        const res = await fetch(`${baseURL}?action=${action}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const json = await res.json();
+        return json.success && Array.isArray(json.data) ? json.data : [];
+      } catch (e) {
+        console.warn(`⚠️ Error cargando catálogo ${action}:`, e.message);
+        return [];
+      }
+    }
+
+    const [estados, estadosSistema, especialistas] = await Promise.all([
+      fetchCatalogo("listar_estados_activos"),
+      fetchCatalogo("listar_estados_sistema_activos"),
+      fetchCatalogo("listar_especialistas_activos")
+    ]);
+
+    // --- Generar opciones ---
+    const optionsEstados = estados.map(e =>
+      `<option value="${e.id_estado}" ${String(e.id_estado) === String(expediente.id_estado) ? 'selected' : ''}>${e.nombre_estado}</option>`
+    ).join('');
+
+    const optionsEstadosSistema = estadosSistema.map(es =>
+      `<option value="${es.id_estado_sistema}" ${String(es.id_estado_sistema) === String(expediente.id_estado_sistema) ? 'selected' : ''}>${es.nombre_estado_sistema}</option>`
+    ).join('');
+
+    const optionsEspecialistas = especialistas.map(esp =>
+      `<option value="${esp.id_especialista}" ${String(esp.id_especialista) === String(expediente.id_especialista) ? 'selected' : ''}>${esp.nombre_completo}</option>`
+    ).join('');
+
     const modal = document.createElement("div");
     modal.className = "fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto";
     modal.innerHTML = `
-      <div class="bg-white rounded-lg shadow-2xl max-w-2xl w-full my-8 p-6 space-y-4">
+      <div class="bg-white rounded-lg shadow-2xl max-w-3xl w-full my-8 p-6 space-y-4">
         <div class="flex items-center justify-between">
           <h2 class="text-2xl font-bold text-slate-900">✏️ Editar Expediente</h2>
           <button class="btn-cerrar text-slate-500 hover:text-slate-700 font-bold text-2xl">✕</button>
         </div>
         <form class="space-y-4">
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <!-- Información de solo lectura -->
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-50 p-4 rounded-lg border border-slate-200">
             <div>
               <label class="block text-xs uppercase tracking-wider font-bold text-slate-600 mb-1">Número Expediente</label>
-              <input type="text" value="${formateado.numero}" disabled class="w-full px-3 py-2 border border-slate-300 rounded bg-slate-100 text-slate-600" />
+              <input type="text" value="${formateado.numero}" disabled class="w-full px-3 py-2 border border-slate-300 rounded bg-slate-100 text-slate-600 font-mono" />
             </div>
             <div>
               <label class="block text-xs uppercase tracking-wider font-bold text-slate-600 mb-1">Año</label>
@@ -441,22 +478,66 @@ function renderListadoExpedientes(expedientes, mountNode) {
               <input type="text" value="${formateado.materia}" disabled class="w-full px-3 py-2 border border-slate-300 rounded bg-slate-100 text-slate-600" />
             </div>
             <div>
-              <label class="block text-xs uppercase tracking-wider font-bold text-slate-600 mb-1">Juzgado</label>\n              <input type="text" value="${formateado.juzgado}" disabled class="w-full px-3 py-2 border border-slate-300 rounded bg-slate-100 text-slate-600" />
-            </div>\n            <div>
-              <label class="block text-xs uppercase tracking-wider font-bold text-slate-600 mb-1">Ubicación</label>
-              <input type="text" class="edit-ubicacion w-full px-3 py-2 border border-slate-300 rounded focus:border-blue-500 focus:ring-1 focus:ring-blue-500" value="${formateado.ubicacion}" />
+              <label class="block text-xs uppercase tracking-wider font-bold text-slate-600 mb-1">Registrado por</label>
+              <input type="text" value="${formateado.registradoPor || '-'}" disabled class="w-full px-3 py-2 border border-slate-300 rounded bg-slate-100 text-slate-600" />
             </div>
+          </div>
+
+          <!-- Campos editables -->
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <!-- Juzgado solo lectura -->
             <div>
-              <label class="block text-xs uppercase tracking-wider font-bold text-slate-600 mb-1">Estado</label>
-              <input type="text" class="edit-estado w-full px-3 py-2 border border-slate-300 rounded focus:border-blue-500 focus:ring-1 focus:ring-blue-500" value="${formateado.estado}" />
+              <label class="block text-xs uppercase tracking-wider font-bold text-blue-700 mb-2">🏛️ Juzgado</label>
+              <input type="text" class="edit-juzgado w-full px-3 py-2 border-2 border-blue-200 rounded bg-slate-100 text-slate-600" value="${formateado.juzgado}" readonly />
+            </div>
+
+            <!-- Estado del Expediente en Archivo -->
+            <div>
+              <label class="block text-xs uppercase tracking-wider font-bold text-green-700 mb-2">📦 Estado del Expediente</label>
+              <select class="edit-estado w-full px-3 py-2 border-2 border-green-300 rounded focus:border-green-500 focus:ring-2 focus:ring-green-200 bg-green-50">
+                <option value="">-- Seleccionar Estado --</option>
+                ${optionsEstados}
+              </select>
+            </div>
+
+            <!-- Estado del Sistema -->
+            <div>
+              <label class="block text-xs uppercase tracking-wider font-bold text-indigo-700 mb-2">⚖️ Estado del Sistema</label>
+              <select class="edit-estado-sistema w-full px-3 py-2 border-2 border-indigo-300 rounded focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 bg-indigo-50">
+                <option value="">-- Seleccionar Estado --</option>
+                ${optionsEstadosSistema}
+              </select>
+            </div>
+
+            <!-- Ubicación editable -->
+            <div>
+              <label class="block text-xs uppercase tracking-wider font-bold text-amber-700 mb-2">📍 Ubicación</label>
+              <input type="text" class="edit-ubicacion w-full px-3 py-2 border-2 border-amber-300 rounded focus:border-amber-500 focus:ring-2 focus:ring-amber-200 bg-amber-50" 
+                value="${formateado.ubicacion}" placeholder="Ej: Estante, Archivo A-1" />
+            </div>
+
+            <!-- Especialista editable -->
+            <div>
+              <label class="block text-xs uppercase tracking-wider font-bold text-purple-700 mb-2">👤 Especialista Asignado</label>
+              <select class="edit-especialista w-full px-3 py-2 border-2 border-purple-300 rounded focus:border-purple-500 focus:ring-2 focus:ring-purple-200 bg-purple-50">
+                <option value="">-- Seleccionar Especialista --</option>
+                ${optionsEspecialistas}
+              </select>
             </div>
           </div>
+
+          <!-- Observaciones -->
           <div>
-            <label class="block text-xs uppercase tracking-wider font-bold text-slate-600 mb-1">Observaciones</label>
-            <textarea class="edit-observaciones w-full px-3 py-2 border border-slate-300 rounded focus:border-blue-500 focus:ring-1 focus:ring-blue-500 font-mono text-sm" rows="4">${expediente.observaciones || ""}</textarea>
+            <label class="block text-xs uppercase tracking-wider font-bold text-slate-600 mb-2">📝 Observaciones</label>
+            <textarea class="edit-observaciones w-full px-3 py-2 border-2 border-slate-300 rounded focus:border-slate-500 focus:ring-2 focus:ring-slate-200 font-mono text-sm bg-slate-50" 
+              rows="3" placeholder="Notas adicionales sobre el expediente...">${expediente.observaciones || ""}</textarea>
           </div>
-          <div class="bg-blue-50 border border-blue-200 rounded-lg p-3">
-            <p class="text-sm text-blue-800">ℹ️ Solo puedes editar: <strong>Ubicación, Estado y Observaciones</strong></p>
+
+          <!-- Info de campos editables -->
+          <div class="bg-gradient-to-r from-blue-50 to-purple-50 border-l-4 border-purple-500 rounded-lg p-4">
+            <p class="text-sm font-semibold text-slate-800">
+              ✅ <strong>Campos editables:</strong> Estado del Expediente, Estado del Sistema, Ubicación, Especialista y Observaciones
+            </p>
           </div>
         </form>
         <div class="flex gap-2 justify-end pt-4 border-t border-slate-200">
@@ -470,21 +551,71 @@ function renderListadoExpedientes(expedientes, mountNode) {
     modal.querySelector(".btn-cerrar").addEventListener("click", () => modal.remove());
     modal.querySelector(".btn-cancelar").addEventListener("click", () => modal.remove());
     
-    modal.querySelector(".btn-guardar").addEventListener("click", () => {
+    modal.querySelector(".btn-guardar").addEventListener("click", async () => {
+      const idEstado = modal.querySelector(".edit-estado").value.trim();
+      const idEstadoSistema = modal.querySelector(".edit-estado-sistema").value.trim();
+      const idEspecialista = modal.querySelector(".edit-especialista").value.trim();
       const ubicacion = modal.querySelector(".edit-ubicacion").value.trim();
-      const estado = modal.querySelector(".edit-estado").value.trim();
       const observaciones = modal.querySelector(".edit-observaciones").value.trim();
       
-      console.log("💾 Guardando expediente:", { numero: expediente.numero_expediente, ubicacion, estado, observaciones });
-      showToast("✅ ¡Expediente actualizado correctamente!", "success");
-      
-      const index = expedientes.findIndex(e => e.numero_expediente === expediente.numero_expediente);
-      if (index !== -1) {
-        expedientes[index].ubicacion = ubicacion;
-        expedientes[index].id_estado = estado;
-        expedientes[index].observaciones = observaciones;
+      // Validación básica
+      if (!idEstado) {
+        showToast("⚠️ Debes seleccionar un estado del expediente", "warning");
+        return;
       }
-      modal.remove();
+
+      const btnGuardar = modal.querySelector(".btn-guardar");
+      const textoOriginal = btnGuardar.textContent;
+      btnGuardar.disabled = true;
+      btnGuardar.textContent = "💾 Guardando...";
+
+      try {
+          // Leer usuario real desde sesión autenticada (authManager guarda en 'trabajador_validado')
+          const trabajador = JSON.parse(localStorage.getItem("trabajador_validado") || "null");
+          const usuarioRegistra = trabajador
+            ? `${trabajador.dni} - ${trabajador.nombres} ${trabajador.apellidos}`
+            : "Sin identificar";
+
+          // Compatible con actualizarExpediente(data) del backend
+          const datosActualizacion = {
+            id_expediente: String(expediente.id_expediente || "").trim(),
+            codigo_expediente_completo: String(
+              expediente.codigo_expediente_completo || expediente.numero_expediente || ""
+            ).trim(),
+            id_estado: idEstado,
+            id_estado_sistema: idEstadoSistema,
+            id_especialista: idEspecialista,
+            ubicacion_texto: ubicacion,
+            observaciones,
+            usuario_registra: usuarioRegistra
+        };
+
+        const resultado = await expedienteService.actualizarEnBackend(datosActualizacion);
+
+        if (!resultado.success) {
+          showToast(`❌ ${resultado.message || "No se pudo actualizar"}`, "error");
+          return;
+        }
+
+        const index = expedientes.findIndex(e => e.numero_expediente === expediente.numero_expediente);
+        if (index !== -1) {
+          expedientes[index].id_estado = idEstado;
+          expedientes[index].id_estado_sistema = idEstadoSistema;
+          expedientes[index].id_especialista = idEspecialista;
+          expedientes[index].ubicacion_texto = ubicacion;
+          expedientes[index].observaciones = observaciones;
+        }
+
+        showToast("✅ Expediente actualizado correctamente", "success");
+        mountNode.innerHTML = renderHTML();
+        setupEventListeners();
+        modal.remove();
+      } catch (error) {
+        showToast(`❌ ${error.message}`, "error");
+      } finally {
+        btnGuardar.disabled = false;
+        btnGuardar.textContent = textoOriginal;
+      }
     });
   }
 
@@ -671,9 +802,15 @@ function renderListadoExpedientes(expedientes, mountNode) {
       document.querySelector(".card-surface")?.scrollIntoView({ behavior: "smooth", block: "start" });
     });
 
-    // Filtrar expedientes
+    // Filtros
     document.getElementById("btn-filtrar")?.addEventListener("click", () => {
       aplicarFiltros({ mostrarToast: true });
+    });
+
+    ["filtro-materia", "filtro-juzgado", "filtro-estado"].forEach(id => {
+      document.getElementById(id)?.addEventListener("change", () => {
+        aplicarFiltros({ mostrarToast: false });
+      });
     });
 
     document.getElementById("filtro-texto")?.addEventListener("keydown", (event) => {
@@ -683,7 +820,6 @@ function renderListadoExpedientes(expedientes, mountNode) {
       }
     });
 
-    // Limpiar filtros
     document.getElementById("btn-limpiar-filtros")?.addEventListener("click", () => {
       filtrosActivos = {
         materia: "",
@@ -692,7 +828,7 @@ function renderListadoExpedientes(expedientes, mountNode) {
         texto: ""
       };
       expedientesFiltrados = [...expedientes];
-      paginaActual = 1; // Resetear a primera página
+      paginaActual = 1;
       showToast("🧹 Filtros limpios", "info");
       mountNode.innerHTML = renderHTML();
       setupEventListeners();

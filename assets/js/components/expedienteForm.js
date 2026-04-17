@@ -276,8 +276,17 @@ export function renderFormularioLectora(expediente = {}) {
       <input type="hidden" name="estado" value="${estado}" />
       <input type="hidden" name="ubicacionActual" value="${expediente.ubicacionActual || "Estante"}" />
       <input type="hidden" name="paqueteId" value="${expediente.paqueteId || ""}" />
-      <input type="hidden" name="observaciones" value="" />
       <input type="hidden" name="textoRelacionado" value="" />
+
+      <!-- 📝 OBSERVACIONES -->
+      <div class="rounded-xl border-2 border-sky-300 bg-gradient-to-r from-sky-50 to-cyan-50 p-3 shadow-sm ring-1 ring-sky-100/70">
+        <div class="flex items-center gap-2 mb-2">
+          <span class="text-xl">📝</span>
+          <label class="text-sm font-bold text-sky-900 uppercase">Observaciones</label>
+        </div>
+        <textarea class="textarea-base w-full border-2 border-sky-300 focus:border-sky-500 focus:ring-2 focus:ring-sky-200" 
+          rows="2" name="observaciones" placeholder="Notas adicionales sobre el expediente (registrado por lectora)...">${expediente.observaciones || ''}</textarea>
+      </div>
 
       <p id="form-feedback-lectora" class="text-sm min-h-5"></p>
 
