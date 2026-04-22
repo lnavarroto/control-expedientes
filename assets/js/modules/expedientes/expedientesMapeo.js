@@ -5,6 +5,7 @@
 import { estadoService } from "../../services/estadoService.js";
 import { materiaService } from "../../services/materiaService.js";
 import { juzgadoService } from "../../services/juzgadoService.js";
+import { statusBadge } from "../../components/statusBadge.js";
 
 const TZ_FIJA = "America/Lima";
 
@@ -237,13 +238,7 @@ export function formatearExpediente(exp, estadoMap = null) {
  */
 export function formatearFilaTabla(exp) {
   const formateado = formatearExpediente(exp);
-  
-  const estadoHtml = `
-    <span class="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold 
-      bg-${formateado.estadoColor}-100 text-${formateado.estadoColor}-700">
-      ${formateado.estado}
-    </span>
-  `;
+  const estadoHtml = statusBadge(formateado.estado);
 
   return {
     codigo: formateado.codigo,

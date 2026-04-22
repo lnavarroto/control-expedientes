@@ -14,6 +14,26 @@ import { appConfig } from "../../config.js";
 let enviandoExpediente = false;
 const expedientesEnProceso = new Map();
 
+// ✅ REEMPLAZAR POR ESTO - respeta el código completo
+function extraerNumeroExpedienteBase(valor) {
+  const texto = String(valor || "").trim().toUpperCase();
+  if (!texto) return "";
+
+  // Si ya es código completo con guiones, devolverlo tal cual
+  if (texto.includes("-")) return texto;
+
+  // Si es solo número, formatear con ceros
+  const matchInicio = texto.match(/^(\d+)/);
+  if (matchInicio) {
+    return String(matchInicio[1]).padStart(5, "0");
+  }
+
+  const soloDigitos = texto.replace(/\D/g, "");
+  if (!soloDigitos) return "";
+
+  return soloDigitos.slice(0, 5).padStart(5, "0");
+}
+
 function resetearFormularioManual() {
   const form = document.getElementById("form-expediente");
   if (!form) return;
@@ -23,7 +43,7 @@ function resetearFormularioManual() {
   form.anio.value = "";
   form.incidente.value = "0";
   document.getElementById("checkbox-incidente")?.checked && document.getElementById("checkbox-incidente").dispatchEvent(new Event("change"));
-  form.codigoCorte.value = "3101-JR";
+  form.codigoCorte.value = "3101";
   form.materia.value = "CI";
   form.numeroJuzgado.value = "01";
   form.fechaIngreso.value = new Date().toISOString().split("T")[0];
@@ -74,6 +94,14 @@ function resetearFormularioLectora() {
 
   const resumenBox = document.getElementById("resumen-lectora");
   if (resumenBox) resumenBox.classList.add("hidden");
+
+  // Limpiar observaciones
+  if (form) {
+    const observacionesTextarea = form.querySelector("textarea[name='observaciones']");
+    if (observacionesTextarea) {
+      observacionesTextarea.value = "";
+    }
+  }
 }
 
 /**
@@ -83,42 +111,50 @@ export function construirPayloadRegistro(formData, usuario) {
   const juzgados = juzgadoService.listarSync();
   const materias = materiaService.listarSync();
 
-  // Obtener nombre de juzgado
   let juzgadoTexto = formData.juzgado || "";
-  if (formData.id_juzgado) {
-    const juz = juzgados.find(j => j.id === formData.id_juzgado || j.nombre === formData.juzgado);
+  const idJuzgado = String(formData.id_juzgado || "").trim();
+
+  if (idJuzgado) {
+    const juz = juzgados.find(j =>
+      String(j.id_juzgado || "").trim() === idJuzgado
+    );
+
     if (juz) {
-      juzgadoTexto = juz.nombre;
-    }
+  juzgadoTexto = String(juz.nombre_juzgado || juz.nombre || "").trim(); // ✅ correcto
+}
   }
 
-  // Obtener código de materia
   let codigoMateria = formData.materia || "CI";
   if (formData.codigo_materia) {
     codigoMateria = formData.codigo_materia;
   } else {
-    const mat = materias.find(m => m.nombre === formData.materia || m.abreviatura === formData.materia);
+    const mat = materias.find(m =>
+      m.nombre === formData.materia || m.abreviatura === formData.materia
+    );
     if (mat) {
       codigoMateria = mat.codigo;
     }
   }
 
-  const numeroExp = (formData.numeroExpediente || "").toString().padStart(5, "0");
+  const numeroExpRaw = (formData.numeroExpediente || "").toString().trim().toUpperCase();
   const anio = (formData.anio || new Date().getFullYear()).toString();
   const incidente = (formData.incidente || "0").toString();
   const codigoCorte = (formData.codigoCorte || "3101").toString();
-  const tipoOrgano = (formData.tipoOrgano || "1").toString();
+  const tipoOrgano = (formData.tipoOrgano || "").toString().trim().toUpperCase();
+
+  const codigoBarras = (formData.codigoLecturaRaw || "").toString().trim();
+  const numeroExpCompleto = numeroExpRaw;
 
   return {
     action: "registrar_expediente",
-    codigo_expediente_completo: (formData.codigoLecturaRaw || "").toString().trim(),
-    numero_expediente: numeroExp,
+    codigo_expediente_completo: codigoBarras || numeroExpCompleto,
+    numero_expediente: numeroExpCompleto,
     anio: anio,
     incidente: incidente,
     codigo_corte: codigoCorte,
     tipo_organo: tipoOrgano,
     codigo_materia: codigoMateria,
-    id_juzgado: formData.id_juzgado || "",
+    id_juzgado: idJuzgado,
     juzgado_texto: juzgadoTexto,
     fecha_ingreso: formData.fechaIngreso || new Date().toISOString().slice(0, 10),
     hora_ingreso: formData.horaIngreso || new Date().toTimeString().slice(0, 5),
@@ -140,22 +176,34 @@ export async function enviarExpedienteAlBackend(payload, btnGuardar) {
     return { success: false, error: "Ya se está enviando otro expediente" };
   }
 
-  const codigoKey = `${payload.numero_expediente}-${payload.anio}`;
+  const codigoKey = payload.codigo_expediente_completo ||
+                    `${payload.numero_expediente}-${payload.anio}`;
 
   if (expedientesEnProceso.has(codigoKey)) {
     showToast("⚠️ Este expediente ya está siendo registrado. Evita doble clic.", "warning");
     return { success: false, error: "Expediente ya en proceso" };
   }
 
-  // ✅ VALIDACIÓN LOCAL RÁPIDA: Verificar contra caché del backend PRIMERO
+  // ✅ Validar duplicado cubriendo registros nuevos (código barras) y antiguos (número legible)
   const expedientesBackend = expedienteService.listarDelBackendSync();
+  const codigoNuevo = String(payload.codigo_expediente_completo || "").trim();
+  const numeroNuevo = String(payload.numero_expediente || "").trim();
+
   const yaExisteLocalmente = expedientesBackend.some(exp => {
-    const numExp = `${String(exp.numero_expediente || "").padStart(5, "0")}-${exp.anio || payload.anio}`;
-    return numExp === codigoKey;
+    const codigoExistente = String(exp.codigo_expediente_completo || "").trim();
+    const numeroExistente = String(exp.numero_expediente || "").trim();
+    return (
+      codigoExistente === codigoNuevo ||  // registros nuevos (código barras)
+      codigoExistente === numeroNuevo ||  // registros antiguos (número legible)
+      numeroExistente === numeroNuevo     // número legible contra número legible
+    );
   });
 
   if (yaExisteLocalmente) {
-    showToast(`❌ DUPLICADO: El expediente ${codigoKey} ya está registrado en el servidor`, "error");
+    showToast(
+      `❌ DUPLICADO: El expediente ${numeroNuevo} ya está registrado`,
+      "error"
+    );
     return { success: false, error: "Duplicado", isDuplicate: true };
   }
 
@@ -188,7 +236,7 @@ export async function enviarExpedienteAlBackend(payload, btnGuardar) {
 
     if (resultado.success) {
       showToast(
-        `✅ Expediente registrado: ${codigoKey}`,
+        `✅ Expediente registrado: ${numeroNuevo}`,
         "success"
       );
 
@@ -198,11 +246,11 @@ export async function enviarExpedienteAlBackend(payload, btnGuardar) {
 
       return { success: true, data: resultado.data };
     } else {
-      const mensaje = resultado.message || "Error desconocido";
+      const mensaje = resultado.error || resultado.message || "Error desconocido";
 
       if (mensaje.toLowerCase().includes("ya existe") || mensaje.toLowerCase().includes("duplicad")) {
         showToast(
-          `❌ DUPLICADO: El expediente ${codigoKey} ya existe en el servidor`,
+          `❌ DUPLICADO: El expediente ${numeroNuevo} ya existe en el servidor`,
           "error"
         );
         return { success: false, error: "Duplicado", isDuplicate: true };
@@ -222,7 +270,6 @@ export async function enviarExpedienteAlBackend(payload, btnGuardar) {
     enviandoExpediente = false;
     expedientesEnProceso.delete(codigoKey);
 
-    // Restaurar botón
     if (btnGuardar) {
       btnGuardar.disabled = false;
       btnGuardar.style.opacity = "1";

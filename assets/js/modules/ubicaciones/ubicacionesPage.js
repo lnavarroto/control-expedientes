@@ -5,6 +5,8 @@ import { expedienteService } from "../../services/expedienteService.js";
 import { ubicacionService } from "../../services/ubicacionService.js";
 import { validarNumeroExpediente } from "../../utils/validators.js";
 import { parsearLectora } from "../../utils/lectora.js";
+import { icon } from "../../components/icons.js";
+import { ALERT_TONES } from "../../core/uiTokens.js";
 
 function renderHistorial(expedienteId) {
   const historial = expedienteService
@@ -48,18 +50,18 @@ export function initUbicacionesPage({ mountNode, sesion }) {
       <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
         <div>
           <h3 class="font-semibold text-lg">Registrar movimiento y ubicación</h3>
-          <p class="text-sm text-slate-500">Entrada manual (🖱️) o por lectora (📱) con autocompletado automático.</p>
+          <p class="text-sm text-slate-500">Entrada manual o por lectora con autocompletado automático.</p>
         </div>
         <div class="flex gap-2">
-          <button id="ubi-modo-manual" class="btn btn-secondary" title="Entrada manual">🖱️ Manual</button>
-          <button id="ubi-modo-lectora" class="btn btn-secondary" title="Entrada por lectora">📱 Lectora</button>
+          <button id="ubi-modo-manual" class="btn btn-secondary inline-flex items-center gap-2" title="Entrada manual">${icon("edit", "w-4 h-4")}<span>Manual</span></button>
+          <button id="ubi-modo-lectora" class="btn btn-secondary inline-flex items-center gap-2" title="Entrada por lectora">${icon("shieldCheck", "w-4 h-4")}<span>Lectora</span></button>
         </div>
       </div>
 
       <div id="estado-chip-ubicacion" style="margin-bottom: 12px; min-height: 36px;"></div>
 
-      <div id="modo-lectora-alerta" class="hidden rounded-xl border border-sky-300 bg-sky-50 px-4 py-3 text-sm text-sky-900 mb-4">
-        <span class="font-medium">📱 Modo lectora activo</span> - Escanee el código y presione Enter para llenar automaticamente.
+      <div id="modo-lectora-alerta" class="hidden rounded-xl border ${ALERT_TONES.info.border} ${ALERT_TONES.info.surface} px-4 py-3 text-sm ${ALERT_TONES.info.text} mb-4">
+        <span class="font-medium">Modo lectora activo</span> - Escanee el código y presione Enter para llenar automaticamente.
       </div>
 
       <form id="form-ubicacion" class="grid md:grid-cols-2 gap-3">
@@ -90,8 +92,8 @@ export function initUbicacionesPage({ mountNode, sesion }) {
           <input class="input-base" name="observacion" placeholder="Detalle del movimiento" />
         </div>
         <div class="md:col-span-2 flex justify-end gap-2">
-          <button id="btn-limpiar-ubi" class="btn btn-secondary text-sm md:text-base px-5 py-2.5" type="button">Limpiar</button>
-          <button class="btn btn-primary text-sm md:text-base px-5 py-2.5" type="submit">Registrar movimiento</button>
+          <button id="btn-limpiar-ubi" class="btn btn-secondary text-sm md:text-base px-5 py-2.5 inline-flex items-center gap-2" type="button">${icon("refreshCw", "w-4 h-4")}<span>Limpiar</span></button>
+          <button class="btn btn-primary text-sm md:text-base px-5 py-2.5 inline-flex items-center gap-2" type="submit">${icon("check", "w-4 h-4")}<span>Registrar movimiento</span></button>
         </div>
       </form>
     </section>
@@ -113,18 +115,16 @@ export function initUbicacionesPage({ mountNode, sesion }) {
     let html = '';
     
     if (estado === "pendiente") {
-      html = `<div class="px-3 py-2 rounded-lg border border-slate-300 bg-slate-50 text-sm text-slate-600">
-        ${esLectora ? "📱 Modo lectora" : "🖱️ Modo manual"} - Esperando entrada...
+      html = `<div class="px-3 py-2 rounded-lg border ${ALERT_TONES.neutral.border} ${ALERT_TONES.neutral.surface} text-sm ${ALERT_TONES.neutral.text}">
+        ${esLectora ? "Modo lectora" : "Modo manual"} - Esperando entrada...
       </div>`;
     } else if (estado === "valido") {
-      const icono = esLectora ? "📱" : "🖱️";
-      html = `<div class="px-3 py-2 rounded-lg border-2 border-green-400 bg-green-50 text-sm font-semibold text-green-700">
-        ${icono} Válido - Expediente verificado
+      html = `<div class="px-3 py-2 rounded-lg border-2 ${ALERT_TONES.success.border} ${ALERT_TONES.success.surface} text-sm font-semibold ${ALERT_TONES.success.text}">
+        Válido - Expediente verificado
       </div>`;
     } else if (estado === "invalido") {
-      const icono = esLectora ? "📱" : "🖱️";
-      html = `<div class="px-3 py-2 rounded-lg border-2 border-red-400 bg-red-50 text-sm font-semibold text-red-700">
-        ${icono} Inválido - Revisar formato
+      html = `<div class="px-3 py-2 rounded-lg border-2 ${ALERT_TONES.danger.border} ${ALERT_TONES.danger.surface} text-sm font-semibold ${ALERT_TONES.danger.text}">
+        Inválido - Revisar formato
       </div>`;
     }
     
@@ -209,7 +209,7 @@ export function initUbicacionesPage({ mountNode, sesion }) {
     numeroInput.focus();
     actualizarChipUbicacion("pendiente", false);
     modoAlerta.classList.add("hidden");
-    showToast("🖱️ Modo manual", "info");
+    showToast("Modo manual", "info");
   });
 
   document.getElementById("ubi-modo-lectora")?.addEventListener("click", () => {
@@ -220,14 +220,14 @@ export function initUbicacionesPage({ mountNode, sesion }) {
     modoAlerta.classList.remove("hidden");
     
     openModal({
-      title: "📱 Modo Lectora - Registrar Movimiento",
+      title: "Modo Lectora - Registrar Movimiento",
       content: `
         <div class="space-y-4">
           <p class="text-base font-medium text-slate-700">Registrar ubicación y movimiento del expediente</p>
           
-          <div class="bg-sky-50 border border-sky-300 rounded-lg p-4 space-y-2">
-            <p class="text-sm text-sky-900 font-semibold">📋 Instrucciones:</p>
-            <ol class="text-sm text-sky-800 space-y-2 ml-4 list-decimal">
+          <div class="${ALERT_TONES.info.surface} border ${ALERT_TONES.info.border} rounded-lg p-4 space-y-2">
+            <p class="text-sm ${ALERT_TONES.info.text} font-semibold inline-flex items-center gap-2">${icon("list", "w-4 h-4")}<span>Instrucciones:</span></p>
+            <ol class="text-sm ${ALERT_TONES.info.text} space-y-2 ml-4 list-decimal">
               <li>Acerca el código de barras al escáner</li>
               <li>El código se ingresará automáticamente</li>
               <li>Se buscará el expediente en el sistema</li>
@@ -243,7 +243,7 @@ export function initUbicacionesPage({ mountNode, sesion }) {
       confirmText: "Entendido",
       onConfirm: (close) => {
         close();
-        showToast("📱 Escanea el código del expediente", "success");
+        showToast("Escanea el código del expediente", "success");
       }
     });
   });

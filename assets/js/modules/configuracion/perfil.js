@@ -5,6 +5,7 @@
 import { perfilService } from "../../services/perfilService.js";
 import { authManager } from "../../auth/authManager.js";
 import { showToast } from "../../components/toast.js";
+import { icon } from "../../components/icons.js";
 
 function formPerfil(perfil) {
   const cargos = perfilService.cargos();
@@ -94,7 +95,7 @@ export function initPerfilModule(mountNode) {
   const trabajador = authManager.getTrabajador();
   
   if (!trabajador) {
-    mountNode.innerHTML = `<div class="rounded-lg border-l-4 border-red-400 bg-red-50 p-6"><p class="font-semibold text-red-800">❌ Error</p><p class="text-sm text-red-700 mt-2">No se encontraron datos del usuario. Por favor, vuelve a iniciar sesión.</p></div>`;
+    mountNode.innerHTML = `<div class="rounded-lg border-l-4 border-red-400 bg-red-50 p-6"><p class="font-semibold text-red-800">Error</p><p class="text-sm text-red-700 mt-2">No se encontraron datos del usuario. Por favor, vuelve a iniciar sesión.</p></div>`;
     return;
   }
 
@@ -115,8 +116,8 @@ export function initPerfilModule(mountNode) {
     <div class="max-w-4xl">
       <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <div class="md:col-span-1 flex flex-col items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg border border-blue-200 p-6 text-center">
-          <div class="w-16 h-16 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-4xl mb-3 shadow-lg">
-            👤
+          <div class="w-16 h-16 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center mb-3 shadow-lg">
+            <span class="text-white">${icon("user", "w-8 h-8")}</span>
           </div>
           <p class="font-bold text-lg text-slate-900">${perfil.nombres} ${perfil.apellidos}</p>
           <p class="text-xs text-slate-600 mt-1 font-semibold">${perfil.cargo}</p>
@@ -134,7 +135,7 @@ export function initPerfilModule(mountNode) {
           ↺ Cancelar cambios
         </button>
         <button id="btn-guardar-perfil" class="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition font-medium flex items-center gap-2">
-          <span id="save-loader" class="hidden">⏳</span>
+          <span id="save-loader" class="hidden">...</span>
           <span id="save-text">✓ Guardar cambios</span>
         </button>
       </div>

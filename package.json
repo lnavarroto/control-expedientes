@@ -1,0 +1,24 @@
+{
+  "name": "control-expedientes",
+  "version": "1.0.0",
+  "description": "Sistema frontend modular para gestión de expedientes judiciales del área de archivo con **soporte bimodal manual y por lectora física**.",
+  "main": "cloudflare-worker.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build:tailwind": "tailwindcss -c tailwind.config.js -i ./assets/css/tailwind.input.css -o ./assets/css/tailwind.generated.css --minify"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lnavarroto/control-expedientes.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/lnavarroto/control-expedientes/issues"
+  },
+  "homepage": "https://github.com/lnavarroto/control-expedientes#readme",
+  "devDependencies": {
+    "tailwindcss": "^3.4.17"
+  }
+}

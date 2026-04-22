@@ -5,7 +5,8 @@ function crearSesion(dni) {
   return {
     dni,
     nombre: "Operador Archivo",
-    rol: "Archivo Civil",
+    id_rol: "ROL0002",
+    acceso_sistema: "SI",
     fechaIngreso: new Date().toISOString()
   };
 }

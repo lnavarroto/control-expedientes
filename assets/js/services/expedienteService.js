@@ -17,6 +17,7 @@ import { appConfig } from "../config.js";
 const CACHE_EXPEDIENTES_BACKEND = "expedientes_backend_cache";
 const CACHE_TIMESTAMP_EXPEDIENTES = "expedientes_backend_tiempo";
 const CACHE_TIME = 300000; // 5 minutos para expedientes (más fresco que otros catálogos)
+let inFlightListarBackend = null;
 
 function initData() {
   ensureCollection(STORAGE_KEYS.expedientes, EXPEDIENTES_INICIALES);
@@ -191,6 +192,19 @@ export const expedienteService = {
    * Obtener expedientes del backend con cache
    */
   async listarDelBackend({ forceRefresh = false } = {}) {
+    const timestamp = Number(localStorage.getItem(CACHE_TIMESTAMP_EXPEDIENTES) || 0);
+    const cacheCrudo = localStorage.getItem(CACHE_EXPEDIENTES_BACKEND);
+    const cacheValido = Boolean(cacheCrudo) && (Date.now() - timestamp) < CACHE_TIME;
+
+    if (!forceRefresh && cacheValido) {
+      return { success: true, data: JSON.parse(cacheCrudo) };
+    }
+
+    if (!forceRefresh && inFlightListarBackend) {
+      return inFlightListarBackend;
+    }
+
+    inFlightListarBackend = (async () => {
     try {
       const url = `${appConfig.googleSheetURL}?action=listar_expedientes&_ts=${Date.now()}`;
       const response = await fetch(url, {
@@ -226,7 +240,12 @@ export const expedienteService = {
         return { success: true, data: JSON.parse(cached) };
       }
       return { success: false, data: [], message: error.message };
+    } finally {
+      inFlightListarBackend = null;
     }
+    })();
+
+    return inFlightListarBackend;
   },
 
   /**
@@ -262,7 +281,7 @@ export const expedienteService = {
       if (resultado.success) {
         return { success: true, data: resultado.data };
       }
-      return { success: false, message: "Expediente no encontrado" };
+      return { success: false, message: resultado.error || "Expediente no encontrado" };
     } catch (error) {
       console.error("Error obteniendo expediente:", error);
       return { success: false, message: error.message };

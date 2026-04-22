@@ -1,3 +1,6 @@
+import { icon } from "./icons.js";
+import { ALERT_TONES } from "../core/uiTokens.js";
+
 /**
  * Componente reutilizable de chip para número de expediente
  * SOLO renderiza HTML y actualiza visuales
@@ -10,7 +13,7 @@ export function createNumeroExpedienteChip() {
       <div class="flex items-center justify-between gap-2">
         <label class="text-sm font-semibold uppercase tracking-wide text-slate-600">Número de expediente</label>
         <span id="numero-estado-chip" class="inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium transition-all bg-slate-100 text-slate-700">
-          <span class="text-lg">⏳</span>
+          <span class="text-lg">${icon("list", "w-4 h-4")}</span>
           <span>Pendiente</span>
         </span>
       </div>
@@ -37,7 +40,6 @@ export function actualizarChipEstado(estado, esLectora = false) {
 
   if (!chip) return;
 
-  const iconoModo = esLectora ? "📱" : "🖱️";
   const tipoModo = esLectora ? "Lectora" : "Manual";
 
   let clase = "";
@@ -47,21 +49,21 @@ export function actualizarChipEstado(estado, esLectora = false) {
   let feedbackClase = "";
 
   if (estado === "pendiente") {
-    clase = "bg-slate-100 text-slate-700";
-    icono = "⏳";
+    clase = `${ALERT_TONES.neutral.surface} ${ALERT_TONES.neutral.text}`;
+    icono = icon("list", "w-4 h-4");
     texto = "Pendiente";
     feedbackTexto = esLectora ? "Escanee el código..." : "Ingrese el número...";
     feedbackClase = "text-slate-600";
   } else if (estado === "valido") {
-    clase = "bg-emerald-100 text-emerald-800";
-    icono = iconoModo;
-    texto = `${tipoModo} · ✓ Válido`;
+    clase = `${ALERT_TONES.success.surface} ${ALERT_TONES.success.text}`;
+    icono = icon("shieldCheck", "w-4 h-4");
+    texto = `${tipoModo} · Válido`;
     feedbackTexto = "Autocompletado activado";
     feedbackClase = "text-emerald-700 font-medium";
   } else if (estado === "invalido") {
-    clase = "bg-rose-100 text-rose-800";
-    icono = iconoModo;
-    texto = `${tipoModo} · ✗ Inválido`;
+    clase = `${ALERT_TONES.danger.surface} ${ALERT_TONES.danger.text}`;
+    icono = icon("chevronRight", "w-4 h-4");
+    texto = `${tipoModo} · Inválido`;
     feedbackTexto = "Formato no reconocido";
     feedbackClase = "text-rose-700 font-medium";
   }

@@ -2,21 +2,28 @@ import { openModal } from "../../components/modal.js";
 import { statusBadge } from "../../components/statusBadge.js";
 import { renderTable } from "../../components/table.js";
 import { showToast } from "../../components/toast.js";
+import { icon } from "../../components/icons.js";
 import { expedienteService } from "../../services/expedienteService.js";
 import { formatoFechaHora } from "../../utils/formatters.js";
 import { validarNumeroExpediente } from "../../utils/validators.js";
 import { parsearLectora } from "../../utils/lectora.js";
+import { ALERT_TONES } from "../../core/uiTokens.js";
 
 const PAGE_SIZE_DEFAULT = 8;
 const SORTABLE_COLUMNS = ["expediente", "materia", "juzgado", "ingreso", "ubicacion", "paquete", "estado"];
 
 function actionButtons(id) {
   return `
-    <div class="flex gap-2">
-      <button class="btn btn-secondary text-xs" data-action="detalle" data-id="${id}">Detalle</button>
-      <button class="btn btn-secondary text-xs" data-action="editar" data-id="${id}">Editar</button>
-      <button class="btn btn-secondary text-xs" data-action="mover" data-id="${id}">Mover</button>
-      <button class="btn btn-secondary text-xs" data-action="salida" data-id="${id}">Salida</button>
+    <div class="flex items-start gap-2">
+      <button class="btn btn-secondary text-xs inline-flex items-center gap-1" data-action="detalle" data-id="${id}">${icon("eye", "w-3.5 h-3.5")}<span>Ver</span></button>
+      <details class="relative">
+        <summary class="btn btn-secondary text-xs list-none cursor-pointer">Acciones</summary>
+        <div class="absolute right-0 mt-1 w-36 rounded-lg border border-slate-200 bg-white shadow-lg p-1 z-20">
+          <button class="w-full text-left px-2 py-1.5 rounded text-xs text-slate-700 hover:bg-slate-100 inline-flex items-center gap-1" data-action="editar" data-id="${id}">${icon("edit", "w-3.5 h-3.5")}<span>Editar</span></button>
+          <button class="w-full text-left px-2 py-1.5 rounded text-xs text-slate-700 hover:bg-slate-100 inline-flex items-center gap-1" data-action="mover" data-id="${id}">${icon("transfer", "w-3.5 h-3.5")}<span>Mover</span></button>
+          <button class="w-full text-left px-2 py-1.5 rounded text-xs text-slate-700 hover:bg-slate-100 inline-flex items-center gap-1" data-action="salida" data-id="${id}">${icon("moveRight", "w-3.5 h-3.5")}<span>Salida</span></button>
+        </div>
+      </details>
     </div>
   `;
 }
@@ -43,12 +50,12 @@ function renderListado(data, sortState) {
   const header = columns
     .map((column) => {
       if (!SORTABLE_COLUMNS.includes(column.key)) {
-        return `<th class="px-4 py-3 text-left text-xs uppercase tracking-wide text-slate-500">${column.label}</th>`;
+        return `<th class="px-4 py-3 text-left font-semibold uppercase">${column.label}</th>`;
       }
 
       return `
-        <th class="px-4 py-3 text-left text-xs uppercase tracking-wide text-slate-500">
-          <button class="inline-flex items-center gap-1 hover:text-slate-700" data-sort-key="${column.key}">
+        <th class="px-4 py-3 text-left font-semibold uppercase">
+          <button class="inline-flex items-center gap-1 hover:text-slate-700 transition-colors" data-sort-key="${column.key}">
             <span>${column.label}</span>
             ${renderSortIcon(sortState, column.key)}
           </button>
@@ -60,13 +67,13 @@ function renderListado(data, sortState) {
   const rows = data
     .map((item) => {
       return `
-        <tr class="hover:bg-slate-50">
-          <td class="px-4 py-3 border-t border-slate-100 align-top">${item.numeroExpediente}</td>
-          <td class="px-4 py-3 border-t border-slate-100 align-top">${item.materia}</td>
-          <td class="px-4 py-3 border-t border-slate-100 align-top">${item.juzgado}</td>
-          <td class="px-4 py-3 border-t border-slate-100 align-top">${formatoFechaHora(item.fechaIngreso, item.horaIngreso)}</td>
-          <td class="px-4 py-3 border-t border-slate-100 align-top">${item.ubicacionActual}</td>
-          <td class="px-4 py-3 border-t border-slate-100 align-top">${item.paqueteId || "-"}</td>
+        <tr class="transition-colors">
+          <td class="px-4 py-3 border-t border-slate-100 align-top text-slate-700">${item.numeroExpediente}</td>
+          <td class="px-4 py-3 border-t border-slate-100 align-top text-slate-700">${item.materia}</td>
+          <td class="px-4 py-3 border-t border-slate-100 align-top text-slate-700">${item.juzgado}</td>
+          <td class="px-4 py-3 border-t border-slate-100 align-top text-slate-700">${formatoFechaHora(item.fechaIngreso, item.horaIngreso)}</td>
+          <td class="px-4 py-3 border-t border-slate-100 align-top text-slate-700">${item.ubicacionActual}</td>
+          <td class="px-4 py-3 border-t border-slate-100 align-top text-slate-700">${item.paqueteId || "-"}</td>
           <td class="px-4 py-3 border-t border-slate-100 align-top">${statusBadge(item.estado)}</td>
           <td class="px-4 py-3 border-t border-slate-100 align-top">${actionButtons(item.id)}</td>
         </tr>
@@ -83,10 +90,10 @@ function renderListado(data, sortState) {
   }
 
   return `
-    <div class="card-surface overflow-hidden">
-      <div class="overflow-x-auto">
+    <div class="card-surface table-shell overflow-hidden">
+      <div class="overflow-x-auto overflow-y-auto max-h-[68vh]">
         <table class="w-full text-sm">
-          <thead class="bg-slate-50">${header}</thead>
+          <thead>${header}</thead>
           <tbody>${rows}</tbody>
         </table>
       </div>
@@ -110,15 +117,15 @@ function renderFiltersPanel(data) {
         <p class="text-sm text-slate-500">Búsqueda avanzada para control documental y trazabilidad judicial.</p>
       </div>
 
-      <div class="card-soft p-4">
-        <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
+      <div class="card-soft p-3 md:p-4">
+        <div class="flex flex-wrap items-center justify-between gap-2 md:gap-3 mb-3">
           <div>
             <h4 class="text-xs uppercase tracking-wide text-slate-600 font-bold">Búsqueda general</h4>
             <p class="text-xs text-slate-500">Por número, observación, juzgado o texto relacionado</p>
           </div>
           <div class="flex gap-2">
-            <button id="btn-listar-manual" class="btn btn-secondary text-sm" title="Búsqueda manual">🖱️ Manual</button>
-            <button id="btn-listar-lectora" class="btn btn-secondary text-sm" title="Búsqueda por lectora">📱 Lectora</button>
+            <button id="btn-listar-manual" class="btn btn-secondary text-sm inline-flex items-center gap-1" title="Búsqueda manual">${icon("edit", "w-4 h-4")}<span>Manual</span></button>
+            <button id="btn-listar-lectora" class="btn btn-secondary text-sm inline-flex items-center gap-1" title="Búsqueda por lectora">${icon("shieldCheck", "w-4 h-4")}<span>Lectora</span></button>
           </div>
         </div>
         
@@ -126,19 +133,19 @@ function renderFiltersPanel(data) {
         
         <input id="filtro-texto" class="input-base mb-2" placeholder="N° expediente, observación, juzgado o texto relacionado" />
         
-        <div id="modo-lectora-hint" class="hidden rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-700">
-          <span class="font-medium">📱 Modo lectora:</span> Escanea el código y presione Enter para buscar automáticamente.
+        <div id="modo-lectora-hint" class="hidden rounded-lg border ${ALERT_TONES.info.border} ${ALERT_TONES.info.surface} px-3 py-2 text-xs ${ALERT_TONES.info.text}">
+          <span class="font-medium">Modo lectora:</span> Escanea el código y presione Enter para buscar automáticamente.
         </div>
       </div>
 
-      <div class="card-soft p-4 grid md:grid-cols-3 gap-3">
+      <div class="card-soft p-3 md:p-4 grid md:grid-cols-3 gap-2 md:gap-3">
         <h4 class="md:col-span-3 text-xs uppercase tracking-wide text-slate-600 font-bold">Datos judiciales</h4>
         <select id="filtro-materia" class="select-base">${optionList(materias)}</select>
         <select id="filtro-juzgado" class="select-base">${optionList(juzgados)}</select>
         <select id="filtro-estado" class="select-base">${optionList(expedienteService.estados())}</select>
       </div>
 
-      <div class="card-soft p-4 grid md:grid-cols-4 gap-3">
+      <div class="card-soft p-3 md:p-4 grid md:grid-cols-4 gap-2 md:gap-3">
         <h4 class="md:col-span-4 text-xs uppercase tracking-wide text-slate-600 font-bold">Ubicación y control</h4>
         <select id="filtro-ubicacion" class="select-base">${optionList(ubicaciones)}</select>
         <input id="filtro-paquete" class="input-base" placeholder="Código o ID de paquete" />
@@ -155,7 +162,7 @@ function renderFiltersPanel(data) {
             <option value="25">25</option>
           </select>
         </label>
-        <button id="btn-buscar-filtros" class="btn btn-primary">🔎 Buscar</button>
+        <button id="btn-buscar-filtros" class="btn btn-primary inline-flex items-center gap-2">${icon("busqueda", "w-4 h-4")}<span>Buscar</span></button>
         <button id="btn-limpiar-filtros" class="btn btn-secondary">Limpiar filtros</button>
       </div>
     </section>
@@ -449,13 +456,12 @@ export function initListadoPage({ mountNode }) {
     let html = '';
     
     if (estado === "pendiente") {
-      html = `<div class="px-2 py-1 rounded border border-slate-300 bg-slate-50 text-xs text-slate-600">
-        ${esLectora ? "📱 Modo lectora" : "🖱️ Modo manual"} - Esperando entrada...
+      html = `<div class="px-2 py-1 rounded border ${ALERT_TONES.neutral.border} ${ALERT_TONES.neutral.surface} text-xs ${ALERT_TONES.neutral.text}">
+        ${esLectora ? "Modo lectora" : "Modo manual"} - Esperando entrada...
       </div>`;
     } else if (estado === "valido") {
-      const icono = esLectora ? "📱" : "🖱️";
-      html = `<div class="px-2 py-1 rounded border border-green-400 bg-green-50 text-xs font-semibold text-green-700">
-        ${icono} Válido - Buscando automáticamente...
+      html = `<div class="px-2 py-1 rounded border ${ALERT_TONES.success.border} ${ALERT_TONES.success.surface} text-xs font-semibold ${ALERT_TONES.success.text}">
+        Válido - Buscando automáticamente...
       </div>`;
     }
     
@@ -500,7 +506,7 @@ export function initListadoPage({ mountNode }) {
     filtroTexto.focus();
     actualizarChipListado("pendiente", false);
     document.getElementById("modo-lectora-hint")?.classList.add("hidden");
-    showToast("🖱️ Búsqueda manual activada", "info");
+    showToast("Búsqueda manual activada", "info");
   });
 
   document.getElementById("btn-listar-lectora")?.addEventListener("click", () => {
@@ -512,14 +518,14 @@ export function initListadoPage({ mountNode }) {
     document.getElementById("modo-lectora-hint")?.classList.remove("hidden");
     
     openModal({
-      title: "📱 Modo Lectora - Ver Expedientes",
+      title: "Modo Lectora - Ver Expedientes",
       content: `
         <div class="space-y-4">
           <p class="text-base font-medium text-slate-700">N° expediente, observación, juzgado o texto relacionado</p>
           
-          <div class="bg-sky-50 border border-sky-300 rounded-lg p-4 space-y-2">
-            <p class="text-sm text-sky-900 font-semibold">📋 Instrucciones:</p>
-            <ol class="text-sm text-sky-800 space-y-2 ml-4 list-decimal">
+          <div class="${ALERT_TONES.info.surface} border ${ALERT_TONES.info.border} rounded-lg p-4 space-y-2">
+            <p class="text-sm ${ALERT_TONES.info.text} font-semibold inline-flex items-center gap-2">${icon("list", "w-4 h-4")}<span>Instrucciones:</span></p>
+            <ol class="text-sm ${ALERT_TONES.info.text} space-y-2 ml-4 list-decimal">
               <li>Acerca el código de barras al escáner</li>
               <li>El código se ingresará automáticamente</li>
               <li>Presiona <strong>ENTER</strong> para buscar automáticamente</li>
@@ -533,7 +539,7 @@ export function initListadoPage({ mountNode }) {
       confirmText: "Entendido",
       onConfirm: (close) => {
         close();
-        showToast("📱 Escanea el código y presione Enter para buscar automáticamente", "success");
+        showToast("Escanea el código y presione Enter para buscar automáticamente", "success");
       }
     });
   });

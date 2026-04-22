@@ -215,6 +215,74 @@ body {
   }
 }
 
+/* === MENÚ HAMBURGUESA - Drawer en pantallas < lg (mobile / TV) === */
+@media (max-width: 1023px) {
+  .app-sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100vh;
+    width: 20rem;
+    max-width: 85vw;
+    z-index: 50;
+    transform: translateX(-100%);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  .app-sidebar.sidebar-open {
+    transform: translateX(0);
+    box-shadow: 0 0 40px rgba(0, 0, 0, 0.45);
+  }
+
+  /* Ocultar boton colapsar en mobile (no aplica en drawer) */
+  .app-sidebar .btn-sidebar-toggle {
+    display: none;
+  }
+
+  /* Boton cerrar dentro del sidebar (mobile) */
+  .btn-sidebar-close {
+    display: flex;
+  }
+}
+
+@media (min-width: 1024px) {
+  .btn-sidebar-close {
+    display: none;
+  }
+}
+
+/* Overlay oscuro que aparece detrás del drawer */
+#sidebar-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  z-index: 49;
+  backdrop-filter: blur(2px);
+  animation: fadeIn 0.2s ease;
+}
+
+#sidebar-overlay.active {
+  display: block;
+}
+
+/* Animación de las líneas hamburguesa cuando está abierto */
+.hamburger-open .hamburger-line:nth-child(1) {
+  transform: translateY(6px) rotate(45deg);
+}
+
+.hamburger-open .hamburger-line:nth-child(2) {
+  opacity: 0;
+  transform: scaleX(0);
+}
+
+.hamburger-open .hamburger-line:nth-child(3) {
+  transform: translateY(-6px) rotate(-45deg);
+}
+
+
 .badge {
   display: inline-flex;
   align-items: center;
@@ -270,6 +338,134 @@ body {
 .btn-danger {
   color: #fff;
   background: var(--color-danger);
+}
+
+.paquete-toolbar {
+  display: flex;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  gap: 0.75rem;
+}
+
+.paquete-action-btn {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 0.8rem;
+  min-height: 3.25rem;
+  padding: 0.8rem 1rem;
+  border: 1px solid transparent;
+  border-radius: 1rem;
+  background: #ffffff;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.08);
+  transition: transform 0.18s ease, box-shadow 0.22s ease, border-color 0.22s ease, background-color 0.22s ease;
+}
+
+.paquete-action-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 30px rgba(15, 23, 42, 0.14);
+}
+
+.paquete-action-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.14);
+}
+
+.paquete-action-btn__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 0.85rem;
+  flex-shrink: 0;
+}
+
+.paquete-action-btn__content {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  line-height: 1.1;
+}
+
+.paquete-action-btn__title {
+  font-size: 0.92rem;
+  font-weight: 800;
+}
+
+.paquete-action-btn__hint {
+  font-size: 0.72rem;
+  font-weight: 600;
+  opacity: 0.82;
+}
+
+.paquete-action-btn--primary {
+  color: #ffffff;
+  background: linear-gradient(135deg, #0f4c81 0%, #1d70b8 100%);
+  box-shadow: 0 14px 28px rgba(15, 76, 129, 0.28);
+}
+
+.paquete-action-btn--primary .paquete-action-btn__icon {
+  background: rgba(255, 255, 255, 0.18);
+  color: #ffffff;
+}
+
+.paquete-action-btn--assign {
+  color: #0f766e;
+  border-color: #99f6e4;
+  background: linear-gradient(135deg, #ecfeff 0%, #f0fdfa 100%);
+}
+
+.paquete-action-btn--assign .paquete-action-btn__icon {
+  background: #ccfbf1;
+  color: #0f766e;
+}
+
+.paquete-action-btn--remove {
+  color: #b45309;
+  border-color: #fde68a;
+  background: linear-gradient(135deg, #fff7ed 0%, #fffbeb 100%);
+}
+
+.paquete-action-btn--remove .paquete-action-btn__icon {
+  background: #ffedd5;
+  color: #b45309;
+}
+
+.paquete-action-btn--catalog {
+  color: #7c2d12;
+  border-color: #fdba74;
+  background: linear-gradient(135deg, #fff7ed 0%, #ffffff 100%);
+}
+
+.paquete-action-btn--catalog .paquete-action-btn__icon {
+  background: #ffedd5;
+  color: #ea580c;
+}
+
+.paquete-action-btn--list {
+  color: #1e3a8a;
+  border-color: #bfdbfe;
+  background: linear-gradient(135deg, #eff6ff 0%, #ffffff 100%);
+}
+
+.paquete-action-btn--list .paquete-action-btn__icon {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+@media (max-width: 768px) {
+  .paquete-toolbar {
+    flex-direction: row;
+    flex-wrap: nowrap;
+  }
+
+  .paquete-action-btn {
+    width: auto;
+    justify-content: flex-start;
+  }
 }
 
 .fade-in {
@@ -377,4 +573,236 @@ body {
 .btn-nav-paginacion:active:not(:disabled) {
   transform: translateY(0);
 }
+
+/* ======================== FOCUS Y ACCESIBILIDAD ======================== */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[role="button"]:focus-visible,
+.nav-link:focus-visible,
+.btn:focus-visible {
+  outline: 2px solid transparent;
+  box-shadow: 0 0 0 3px rgba(29, 95, 139, 0.22), 0 0 0 6px rgba(29, 95, 139, 0.12);
+}
+
+/* ======================== TABLAS ======================== */
+.table-shell {
+  border-radius: var(--radius-lg);
+}
+
+.table-shell table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.table-shell thead {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  box-shadow: inset 0 -1px 0 #dbe6f0;
+}
+
+.table-shell thead th {
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  color: #4b6074;
+  background: linear-gradient(180deg, #f8fbfd 0%, #f1f6fa 100%);
+}
+
+.table-shell tbody tr:nth-child(odd) {
+  background: #ffffff;
+}
+
+.table-shell tbody tr:nth-child(even) {
+  background: #f8fbfe;
+}
+
+.table-shell tbody tr:hover {
+  background: #eef6ff;
+}
+
+/* ======================== MODAL ======================== */
+.modal-open {
+  overflow: hidden;
+}
+
+.modal-overlay {
+  animation: modalFadeIn 0.24s ease;
+}
+
+.modal-panel {
+  animation: modalSlideUp 0.24s ease;
+}
+
+@keyframes modalFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes modalSlideUp {
+  from {
+    transform: translateY(14px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* ======================== REDUCCION DE MOVIMIENTO ======================== */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .nav-link:hover,
+  .btn:hover,
+  .btn-pagina:hover:not(:disabled),
+  .btn-nav-paginacion:hover:not(:disabled) {
+    transform: none !important;
+  }
+}
+
+/* ======================== PÁGINA DE PAQUETES - MEJORAS UI ======================== */
+
+/* Tarjetas de acciones mejoradas */
+.card-surface[class*="border-l-4"] {
+  transition: all 0.3s ease;
+  position: relative;
+}
+
+.card-surface[class*="border-l-4"]:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+
+/* Tabla mejorada para paquetes */
+table {
+  border-collapse: collapse;
+}
+
+table thead {
+  background: linear-gradient(135deg, #f0f4f8 0%, #e8eef7 100%);
+}
+
+table thead th {
+  padding: 1rem 1.5rem;
+  text-align: left;
+  font-weight: 700;
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  color: #334155;
+  border-bottom: 2px solid #cbd5e1;
+}
+
+table tbody tr {
+  border-bottom: 1px solid #e2e8f0;
+  transition: background-color 0.2s ease;
+}
+
+table tbody tr:hover {
+  background-color: #f0f9ff;
+}
+
+table tbody td {
+  padding: 1rem 1.5rem;
+  color: #1e293b;
+  font-size: 0.9375rem;
+}
+
+/* Badge para cantidad de expedientes */
+.badge-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  font-weight: 700;
+  font-size: 0.875rem;
+  background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+  color: white;
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
+}
+
+/* Mejora de inputs dentro de formularios en tarjetas */
+.card-surface input[type="text"],
+.card-surface input[type="email"],
+.card-surface input[type="password"],
+.card-surface input[type="number"],
+.card-surface input[class*="input-"],
+.card-surface select[class*="select-"] {
+  width: 100%;
+  transition: all 0.2s ease;
+  border: 1.5px solid #d1d5db;
+}
+
+.card-surface input[type="text"]:focus,
+.card-surface input[type="email"]:focus,
+.card-surface input[type="password"]:focus,
+.card-surface input[type="number"]:focus,
+.card-surface input[class*="input-"]:focus,
+.card-surface select[class*="select-"]:focus {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+/* Labels mejorados */
+.card-surface label {
+  font-weight: 600;
+  color: #334155;
+  display: block;
+  margin-bottom: 0.5rem;
+}
+
+/* Botones en formularios */
+.card-surface .btn {
+  transition: all 0.3s ease;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.card-surface .btn:not(:disabled):hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
+}
+
+/* Separador visual */
+section > .border-t {
+  margin: 2.5rem 0;
+}
+
+/* Paginación mejorada */
+.card-surface.border-t {
+  background: linear-gradient(to right, #f8fbfd, #ffffff);
+}
+
+/* Responsive para tablas en móviles */
+@media (max-width: 768px) {
+  table {
+    font-size: 0.875rem;
+  }
+
+  table th,
+  table td {
+    padding: 0.75rem 1rem;
+  }
+
+  .card-surface[class*="border-l-4"] {
+    border-left-width: 3px;
+  }
+}
+
 

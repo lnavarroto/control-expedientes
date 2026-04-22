@@ -6,6 +6,7 @@ import { estadoService } from "../../services/estadoService.js";
 import { renderTable } from "../../components/table.js";
 import { showToast } from "../../components/toast.js";
 import { openModal } from "../../components/modal.js";
+import { icon } from "../../components/icons.js";
 
 function renderEstadosTable(estados) {
   const rows = estados.map(e => ({
@@ -18,11 +19,11 @@ function renderEstadosTable(estados) {
       </div>
     `,
     descripcion: e.descripcion || '-',
-    estado: `<span class="badge ${e.activo ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-800'}">${e.activo ? '✓ Activo' : '✗ Inactivo'}</span>`,
+    estado: `<span class="badge ${e.activo ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-800'}">${e.activo ? 'Activo' : 'Inactivo'}</span>`,
     acciones: `
       <div class="flex gap-2">
-        <button class="btn btn-secondary text-xs" data-action="editar" data-id="${e.id}">Editar</button>
-        <button class="btn btn-secondary text-xs" data-action="toggle" data-id="${e.id}">${e.activo ? 'Desactivar' : 'Activar'}</button>
+        <button class="btn btn-secondary text-xs inline-flex items-center gap-1" data-action="editar" data-id="${e.id}">${icon("edit", "w-3 h-3")}<span>Editar</span></button>
+        <button class="btn btn-secondary text-xs inline-flex items-center gap-1" data-action="toggle" data-id="${e.id}">${e.activo ? icon("deactivate", "w-3 h-3") : icon("activate", "w-3 h-3")}<span>${e.activo ? 'Desactivar' : 'Activar'}</span></button>
       </div>
     `
   }));

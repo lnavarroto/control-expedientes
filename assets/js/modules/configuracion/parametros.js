@@ -4,6 +4,7 @@
 
 import { parametroService } from "../../services/parametroService.js";
 import { showToast } from "../../components/toast.js";
+import { icon } from "../../components/icons.js";
 
 function formParametros(parametros) {
   return `
@@ -23,7 +24,7 @@ function formParametros(parametros) {
       </div>
 
       <div class="border-b pb-4">
-        <h4 class="font-semibold text-sm mb-3">📋 Configuración de Expedientes</h4>
+        <h4 class="font-semibold text-sm mb-3">Configuración de Expedientes</h4>
         <div class="space-y-3">
           <div class="grid md:grid-cols-2 gap-3">
             <div>
@@ -66,7 +67,7 @@ function formParametros(parametros) {
       </div>
 
       <div class="border-b pb-4">
-        <h4 class="font-semibold text-sm mb-3">⚙️ Funcionalidades</h4>
+        <h4 class="font-semibold text-sm mb-3">Funcionalidades</h4>
         <div class="space-y-2">
           <label class="flex items-center gap-3 cursor-pointer">
             <input type="checkbox" name="mostrarAyudaVisual" ${parametros.mostrarAyudaVisual ? 'checked' : ''} class="w-4 h-4">
@@ -98,7 +99,7 @@ function formParametros(parametros) {
       </div>
 
       <div class="bg-amber-50 border border-amber-200 rounded p-3 flex items-start gap-3">
-        <span class="text-xl">⚠️</span>
+        <span class="text-amber-600">${icon("target", "w-5 h-5")}</span>
         <p class="text-sm text-slate-700">Los cambios en la configuración se aplicarán globalmente a todo el sistema.</p>
       </div>
     </form>
@@ -111,7 +112,7 @@ export function initParametrosModule(mountNode) {
   mountNode.innerHTML = `
     <div class="max-w-3xl">
       <div class="mb-4">
-        <h3 class="font-semibold text-lg">⚙️ Parámetros del Sistema</h3>
+        <h3 class="font-semibold text-lg">Parámetros del Sistema</h3>
         <p class="text-sm text-slate-500">Configura el comportamiento global de la aplicación</p>
       </div>
 

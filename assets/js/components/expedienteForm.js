@@ -2,6 +2,8 @@ import { ESTADOS_EXPEDIENTE, UBICACIONES_PREDETERMINADAS } from "../data/mockDat
 import { materiaService } from "../services/materiaService.js";
 import { juzgadoService } from "../services/juzgadoService.js";
 import { paqueteService } from "../services/paqueteService.js";
+import { icon } from "./icons.js";
+import { CARD_TONES } from "../core/uiTokens.js";
 
 function optionList(values, selected, keyField = null, labelField = null) {
   return values
@@ -16,6 +18,9 @@ function optionList(values, selected, keyField = null, labelField = null) {
 
 export function renderExpedienteForm(expediente = {}) {
   const estado = expediente.estado || "Ingresado";
+  const tonePrimary = CARD_TONES.primary;
+  const toneSuccess = CARD_TONES.success;
+  const toneWarning = CARD_TONES.warning;
   
   // Data para dropdowns (usar SYNC para cargas rápidas del caché)
   const materias = materiaService.listarSync().filter(m => m.activo);
@@ -45,10 +50,10 @@ export function renderExpedienteForm(expediente = {}) {
         </button>
       </div>
       
-      <!-- 📋 NÚMERO DE EXPEDIENTE - SECCIÓN PRINCIPAL -->
-      <div class="rounded-2xl border-2 border-blue-300 bg-gradient-to-r from-blue-50 via-cyan-50 to-sky-50 p-4 md:p-4 shadow-sm ring-1 ring-blue-100/70">
+      <!-- NÚMERO DE EXPEDIENTE - SECCIÓN PRINCIPAL -->
+      <div class="rounded-2xl border-2 ${tonePrimary.border} bg-gradient-to-r ${tonePrimary.surface} p-4 md:p-4 shadow-sm ring-1 ring-blue-100/70">
         <div class="flex flex-wrap items-center gap-2 mb-2">
-          <span class="text-2xl">📋</span>
+          <span class="${tonePrimary.icon}">${icon("archiveBox", "w-6 h-6")}</span>
           <h3 class="text-base md:text-lg font-bold text-blue-900">Número de Expediente</h3>
           <div class="ml-auto text-right">
             <span id="numero-expediente-chip" class="badge bg-blue-100 text-blue-700 text-xs px-3 py-1 font-semibold">✓ Pendiente</span>
@@ -115,20 +120,30 @@ export function renderExpedienteForm(expediente = {}) {
         <p id="numero-expediente-feedback" class="text-xs text-blue-600 mt-2 font-medium">Ingrese el número para activar autocompletado</p>
       </div>
 
-      <!-- 📍 UBICACIÓN Y ESTADO -->
-      <div class="rounded-xl border-2 border-green-300 bg-gradient-to-r from-green-50 to-emerald-50 p-3 shadow-sm ring-1 ring-green-100/70">
+      <!-- UBICACIÓN Y ESTADO -->
+      <div class="rounded-xl border-2 ${toneSuccess.border} bg-gradient-to-r ${toneSuccess.surface} p-3 shadow-sm ring-1 ring-green-100/70">
         <div class="flex items-center gap-2 mb-2">
-          <span class="text-xl">📍</span>
+          <span class="${toneSuccess.icon}">${icon("mapPin", "w-5 h-5")}</span>
           <h4 class="text-sm font-bold text-green-900">Ubicación y Control</h4>
         </div>
         <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
-          <div>
-            <label class="text-xs font-bold text-green-800 uppercase">Juzgado/Sala</label>
-            <select class="select-base w-full border-2 border-green-300 focus:border-green-500 focus:ring-2 focus:ring-green-200" name="juzgado">
-              <option value="">-- Seleccionar --</option>
-              ${optionList(juzgados, expediente.juzgado, 'nombre', 'nombre')}
-            </select>
-          </div>
+         <div>
+  <label class="text-xs font-bold text-green-800 uppercase">Juzgado/Sala</label>
+  <select 
+    class="select-base w-full border-2 border-green-300 focus:border-green-500 focus:ring-2 focus:ring-green-200" 
+    name="id_juzgado"
+    id="select-juzgado"
+  >
+    <option value="">-- Seleccionar --</option>
+    ${juzgados.map(j => {
+      const id = String(j.id_juzgado || j.id || "").trim();
+      const nombre = String(j.nombre_juzgado || j.nombre || "").trim();
+      const selected = nombre === (expediente.juzgado || "") ? "selected" : "";
+      return `<option value="${id}" data-nombre="${nombre}" ${selected}>${nombre}</option>`;
+    }).join("")}
+  </select>
+  <input type="hidden" name="juzgado" id="hidden-juzgado-nombre" value="${expediente.juzgado || ""}" />
+</div>
           <div>
             <label class="text-xs font-bold text-green-800 uppercase">Paquete</label>
             <select class="select-base w-full border-2 border-green-300 focus:border-green-500 focus:ring-2 focus:ring-green-200" name="paqueteId">
@@ -151,10 +166,10 @@ export function renderExpedienteForm(expediente = {}) {
         </div>
       </div>
 
-      <!-- 📝 OBSERVACIONES -->
-      <div class="rounded-xl border-2 border-amber-300 bg-gradient-to-r from-amber-50 to-orange-50 p-3 shadow-sm ring-1 ring-amber-100/70">
+      <!-- OBSERVACIONES -->
+      <div class="rounded-xl border-2 ${toneWarning.border} bg-gradient-to-r ${toneWarning.surface} p-3 shadow-sm ring-1 ring-amber-100/70">
         <div class="flex items-center gap-2 mb-2">
-          <span class="text-xl">📝</span>
+          <span class="${toneWarning.icon}">${icon("edit", "w-5 h-5")}</span>
           <label class="text-sm font-bold text-amber-900 uppercase">Observaciones</label>
         </div>
         <textarea class="textarea-base w-full border-2 border-amber-300 focus:border-amber-500 focus:ring-2 focus:ring-amber-200" 
@@ -165,10 +180,10 @@ export function renderExpedienteForm(expediente = {}) {
       <p id="form-feedback" class="text-sm min-h-5 text-slate-600"></p>
       <div class="sticky bottom-0 z-20 bg-white/95 backdrop-blur border-t-2 border-slate-200 py-3 px-1 flex flex-wrap gap-3 justify-end">
         <button type="button" id="btn-limpiar" class="btn btn-secondary rounded-lg px-5 py-2 font-bold">
-          🔄 Limpiar
+          <span class="inline-flex items-center gap-2">${icon("refreshCw", "w-4 h-4")}<span>Limpiar</span></span>
         </button>
         <button type="submit" class="btn btn-primary rounded-lg px-6 py-2 font-bold shadow-lg">
-          ✅ Guardar
+          <span class="inline-flex items-center gap-2">${icon("shieldCheck", "w-4 h-4")}<span>Guardar</span></span>
         </button>
       </div>
     </form>
@@ -177,15 +192,16 @@ export function renderExpedienteForm(expediente = {}) {
 
 export function renderFormularioLectora(expediente = {}) {
   const estado = expediente.estado || "Ingresado";
+  const tonePrimary = CARD_TONES.primary;
   return `
     <form id="form-expediente-lectora" class="card-surface p-5 md:p-6 space-y-5">
       <input type="hidden" name="id" value="${expediente.id || ""}" />
       <input type="hidden" name="tipoIngreso" value="LECTORA" />
       
       <!-- Zona de escaneo prominente -->
-      <div class="rounded-2xl border-3 border-dashed border-sky-400 bg-gradient-to-br from-sky-50 to-cyan-50 p-8 md:p-10">
+      <div class="rounded-2xl border-2 border-dashed ${tonePrimary.border} bg-gradient-to-br ${tonePrimary.surface} p-8 md:p-10">
         <div class="text-center space-y-4">
-          <div class="text-5xl">📱</div>
+          <div class="inline-flex ${tonePrimary.icon} justify-center">${icon("shieldCheck", "w-12 h-12")}</div>
           <h3 class="text-xl font-bold text-sky-900">Escáner de Códigos</h3>
           <p class="text-sm text-sky-700 max-w-md mx-auto">
             Acerca el código de barras al escáner. Los datos se completarán automáticamente.
@@ -215,10 +231,10 @@ export function renderFormularioLectora(expediente = {}) {
       <!-- Resumen de datos detectados (oculto hasta escanear) -->
       <div id="resumen-lectora" class="hidden rounded-lg border-2 border-blue-300 bg-gradient-to-r from-blue-50 to-cyan-50 p-4 space-y-3">
         <div class="flex items-center justify-between mb-3">
-          <h4 class="text-sm font-semibold text-blue-900">📋 Expediente Detectado:</h4>
+          <h4 class="text-sm font-semibold text-blue-900 inline-flex items-center gap-2">${icon("archiveBox", "w-4 h-4")}<span>Expediente Detectado:</span></h4>
           <div class="flex gap-2">
-            <button type="button" id="btn-editar-lectora" class="btn btn-sm bg-amber-500 hover:bg-amber-600 text-white px-3 py-1 rounded text-xs font-bold">✏️ Editar</button>
-            <button type="button" id="btn-limpiar-lectora-btn" class="btn btn-sm bg-slate-400 hover:bg-slate-500 text-white px-3 py-1 rounded text-xs font-bold">🔄 Limpiar</button>
+            <button type="button" id="btn-editar-lectora" class="btn btn-sm bg-amber-500 hover:bg-amber-600 text-white px-3 py-1 rounded text-xs font-bold inline-flex items-center gap-1">${icon("edit", "w-3.5 h-3.5")}<span>Editar</span></button>
+            <button type="button" id="btn-limpiar-lectora-btn" class="btn btn-sm bg-slate-400 hover:bg-slate-500 text-white px-3 py-1 rounded text-xs font-bold inline-flex items-center gap-1">${icon("refreshCw", "w-3.5 h-3.5")}<span>Limpiar</span></button>
           </div>
         </div>
         
@@ -278,10 +294,10 @@ export function renderFormularioLectora(expediente = {}) {
       <input type="hidden" name="paqueteId" value="${expediente.paqueteId || ""}" />
       <input type="hidden" name="textoRelacionado" value="" />
 
-      <!-- 📝 OBSERVACIONES -->
-      <div class="rounded-xl border-2 border-sky-300 bg-gradient-to-r from-sky-50 to-cyan-50 p-3 shadow-sm ring-1 ring-sky-100/70">
+      <!-- OBSERVACIONES -->
+      <div class="rounded-xl border-2 ${tonePrimary.border} bg-gradient-to-r ${tonePrimary.surface} p-3 shadow-sm ring-1 ring-sky-100/70">
         <div class="flex items-center gap-2 mb-2">
-          <span class="text-xl">📝</span>
+          <span class="${tonePrimary.icon}">${icon("edit", "w-5 h-5")}</span>
           <label class="text-sm font-bold text-sky-900 uppercase">Observaciones</label>
         </div>
         <textarea class="textarea-base w-full border-2 border-sky-300 focus:border-sky-500 focus:ring-2 focus:ring-sky-200" 
@@ -291,7 +307,7 @@ export function renderFormularioLectora(expediente = {}) {
       <p id="form-feedback-lectora" class="text-sm min-h-5"></p>
 
       <div class="flex flex-wrap gap-3 justify-end pt-1">
-        <button type="submit" id="btn-guardar-lectora" class="btn btn-primary" disabled>✅ Guardar expediente</button>
+        <button type="submit" id="btn-guardar-lectora" class="btn btn-primary inline-flex items-center gap-2" disabled>${icon("shieldCheck", "w-4 h-4")}<span>Guardar expediente</span></button>
       </div>
     </form>
   `;

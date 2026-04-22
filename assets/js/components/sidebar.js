@@ -10,7 +10,7 @@ const links = [
   { key: "busqueda", label: "Búsqueda avanzada", iconName: "busqueda", category: "Operaciones" },
   { key: "ubicaciones", label: "Gestión de ubicaciones", iconName: "ubicaciones", category: "Gestión" },
   { key: "paquetes", label: "Gestión de paquetes", iconName: "paquetes", category: "Gestión" },
-  { key: "movimientos", label: "Movimientos", iconName: "movimientos", category: "Gestión" },
+  { key: "movimientos", label: "Movimientos", iconName: "transfer", category: "Gestión" },
   { key: "configuracion", label: "Configuración", iconName: "configuracion", category: "Sistema" }
 ];
 

@@ -16,8 +16,8 @@ function renderUbicacionesTable(ubicaciones) {
     estado: `<span class="badge ${u.activo ? 'bg-indigo-100 text-indigo-800' : 'bg-slate-100 text-slate-800'}">${u.activo ? '✓ Activo' : '✗ Inactivo'}</span>`,
     acciones: `
       <div class="flex gap-2">
-        <button class="btn btn-secondary text-xs" data-action="editar" data-id="${u.id}">Editar</button>
-        <button class="btn btn-secondary text-xs" data-action="toggle" data-id="${u.id}">${u.activo ? 'Desactivar' : 'Activar'}</button>
+        <button class="btn btn-secondary text-xs inline-flex items-center gap-1" data-action="editar" data-id="${u.id}">${icon("edit", "w-3 h-3")}<span>Editar</span></button>
+        <button class="btn btn-secondary text-xs inline-flex items-center gap-1" data-action="toggle" data-id="${u.id}">${u.activo ? icon("deactivate", "w-3 h-3") : icon("activate", "w-3 h-3")}<span>${u.activo ? 'Desactivar' : 'Activar'}</span></button>
       </div>
     `
   }));
@@ -83,7 +83,7 @@ export function initUbicacionesConfigModule(mountNode) {
   mountNode.innerHTML = `
     <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
       <div>
-        <h3 class="font-semibold text-lg">📍 Gestión de Ubicaciones</h3>
+        <h3 class="font-semibold text-lg">Gestión de Ubicaciones</h3>
         <p class="text-sm text-slate-500">Administra las ubicaciones maestras del archivo</p>
       </div>
       <button id="btn-nueva-ubicacion" class="btn btn-primary">+ Nueva ubicación</button>

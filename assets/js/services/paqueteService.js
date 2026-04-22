@@ -1,24 +1,17 @@
 /**
  * Servicio de Paquetes
- * Lee paquetes activos desde backend y mantiene cache local.
+ * Lee paquetes activos desde backend y mantiene cache en memoria.
  */
 
-import { PAQUETES_INICIALES } from "../data/mockData.js";
-import { expedienteService } from "./expedienteService.js";
-import { STORAGE_KEYS, writeJson, readJson, uid } from "../utils/storage.js";
 import { appConfig } from "../config.js";
 
-const STORAGE_KEY = STORAGE_KEYS.paquetes || "paquetes";
-const CACHE_TIMESTAMP_KEY = "paquetes_tiempo";
-const CACHE_TIME = 3600000; // 1 hora en milisegundos
+const STORAGE_KEY_LEGACY = "paquetes";
+const CACHE_TIMESTAMP_KEY_LEGACY = "paquetes_tiempo";
+const CACHE_TIME = 300000; // 5 minutos
 
-function guardar(paquetes) {
-  writeJson(STORAGE_KEY, paquetes);
-}
-
-function refrescarTimestampCache() {
-  localStorage.setItem(CACHE_TIMESTAMP_KEY, Date.now().toString());
-}
+let paquetesCache = [];
+let cacheTimestamp = 0;
+let inFlightListar = null;
 
 function normalizarPaquete(item = {}) {
   const id = String(item.id_paquete || item.id || item.codigo_paquete || item.codigo || "").trim();
@@ -30,16 +23,18 @@ function normalizarPaquete(item = {}) {
   };
 }
 
-function cacheVigente() {
-  const timestamp = Number(localStorage.getItem(CACHE_TIMESTAMP_KEY) || 0);
-  return timestamp && (Date.now() - timestamp) < CACHE_TIME;
-}
-
 export const paqueteService = {
   init() {
-    if (!localStorage.getItem(STORAGE_KEY)) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(PAQUETES_INICIALES));
+    // Limpia residuos de versiones antiguas que guardaban paquetes en localStorage.
+    try {
+      localStorage.removeItem(STORAGE_KEY_LEGACY);
+      localStorage.removeItem(CACHE_TIMESTAMP_KEY_LEGACY);
+    } catch {
+      // No-op
     }
+    paquetesCache = [];
+    cacheTimestamp = 0;
+    inFlightListar = null;
   },
 
   // Precargar catálogo de paquetes desde backend
@@ -47,105 +42,175 @@ export const paqueteService = {
     return this.listar();
   },
 
-  // Obtener del caché localmente (instantáneo, sin HTTP)
+  // Obtener del caché en memoria (instantáneo, sin HTTP)
   listarSync() {
-    const cached = localStorage.getItem(STORAGE_KEY);
-    return cached ? JSON.parse(cached) : PAQUETES_INICIALES;
+    return Array.isArray(paquetesCache) ? [...paquetesCache] : [];
   },
 
-  // Obtener datos de backend y cachear
-  async listar() {
-    if (cacheVigente()) {
+  // Obtener datos de backend y cachear en memoria
+  async listar(options = {}) {
+    const { forceRefresh = false } = options;
+    const cacheVigente = paquetesCache.length > 0 && (Date.now() - cacheTimestamp) < CACHE_TIME;
+
+    if (!forceRefresh && cacheVigente) {
       return this.listarSync();
     }
 
-    try {
-      const url = `${appConfig.googleSheetURL}?action=listar_paquetes_activos&_ts=${Date.now()}`;
-      const response = await fetch(url, { method: "GET", cache: "no-store" });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    if (!forceRefresh && inFlightListar) {
+      return inFlightListar;
+    }
 
-      const resultado = await response.json();
-      if (!resultado?.success || !Array.isArray(resultado.data)) {
-        throw new Error("Respuesta invalida de listar_paquetes_activos");
+    inFlightListar = (async () => {
+      try {
+        const url = `${appConfig.googleSheetURL}?action=listar_paquetes_activos&_ts=${Date.now()}`;
+        const response = await fetch(url, { method: "GET", cache: "no-store" });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+        const resultado = await response.json();
+        if (!resultado?.success || !Array.isArray(resultado.data)) {
+          throw new Error("Respuesta invalida de listar_paquetes_activos");
+        }
+
+        const normalizados = resultado.data
+          .map(normalizarPaquete)
+          .filter((p) => p.id);
+
+        paquetesCache = normalizados;
+        cacheTimestamp = Date.now();
+        return [...paquetesCache];
+      } catch (error) {
+        console.warn("⚠️ Error listando paquetes del backend, usando caché en memoria:", error);
+        return this.listarSync();
+      } finally {
+        inFlightListar = null;
       }
+    })();
 
-      const normalizados = resultado.data
-        .map(normalizarPaquete)
-        .filter((p) => p.id);
-
-      guardar(normalizados);
-      localStorage.setItem(CACHE_TIMESTAMP_KEY, Date.now().toString());
-      return normalizados;
-    } catch (error) {
-      console.warn("⚠️ Error listando paquetes del backend, usando cache local:", error);
-      return this.listarSync();
-    }
+    return inFlightListar;
   },
 
-  crear({ codigo, descripcion }) {
-    const paquetes = this.listarSync();
-    const nuevo = {
-      id: uid("PQT"),
-      codigo,
-      descripcion,
-      fechaCreacion: new Date().toISOString().slice(0, 10)
-    };
-    paquetes.unshift(nuevo);
-    guardar(paquetes);
-    refrescarTimestampCache();
-    return nuevo;
+  // Compatibilidad temporal: estos flujos locales quedaron deshabilitados.
+  crear() {
+    console.warn("⚠️ crear() local deshabilitado. Usa crear_paquete_archivo en backend.");
+    return null;
   },
 
-  crearContinuacion({ paqueteBaseId, descripcion = "" }) {
-    const paquetes = this.listarSync();
-    const base = paquetes.find((p) => String(p.id) === String(paqueteBaseId));
-    if (!base) return null;
-
-    const codigoBase = String(base.codigo || "").trim();
-    if (!codigoBase) return null;
-
-    const patron = new RegExp(`^${codigoBase.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}-C(\\d{2})$`, "i");
-    const maxCorrelativo = paquetes.reduce((max, item) => {
-      const match = String(item.codigo || "").trim().match(patron);
-      if (!match) return max;
-      const n = Number(match[1]);
-      return Number.isNaN(n) ? max : Math.max(max, n);
-    }, 0);
-
-    const siguiente = String(maxCorrelativo + 1).padStart(2, "0");
-    const codigo = `${codigoBase}-C${siguiente}`;
-    const descripcionFinal = (descripcion || `Continuacion de ${codigoBase}`).trim();
-
-    return this.crear({ codigo, descripcion: descripcionFinal });
+  crearContinuacion() {
+    console.warn("⚠️ crearContinuacion() local deshabilitado. Usa flujo backend.");
+    return null;
   },
 
-  contarExpedientes(paqueteId) {
-    return expedienteService.listar().filter((item) => item.paqueteId === paqueteId).length;
+  contarExpedientes() {
+    return 0;
   },
 
-  asignarExpediente({ expedienteId, paqueteId }) {
-    const expediente = expedienteService.obtener(expedienteId);
-    if (!expediente) return null;
-
-    expedienteService.guardar({
-      ...expediente,
-      paqueteId,
-      estado: "En paquete"
-    });
-
-    return expedienteService.obtener(expedienteId);
+  asignarExpediente() {
+    console.warn("⚠️ asignarExpediente() local deshabilitado. Usa asignar_expediente_paquete en backend.");
+    return null;
   },
 
-  quitarExpediente(expedienteId) {
-    const expediente = expedienteService.obtener(expedienteId);
-    if (!expediente) return null;
-
-    expedienteService.guardar({
-      ...expediente,
-      paqueteId: "",
-      estado: "Ubicado"
-    });
-
-    return expedienteService.obtener(expedienteId);
+  quitarExpediente() {
+    console.warn("⚠️ quitarExpediente() local deshabilitado. Requiere endpoint backend.");
+    return null;
   }
 };
+
+// ============================================================
+// PAQUETES ARCHIVO - Nuevas funciones para backend
+// ============================================================
+
+export async function sugerirPaqueteParaExpediente(codigoExpediente, idUsuarioEspecialista = "") {
+  const params = new URLSearchParams({
+    action: "sugerir_paquete_para_expediente",
+    codigo_expediente_completo: codigoExpediente
+  });
+
+  if (String(idUsuarioEspecialista || "").trim()) {
+    params.set("id_usuario_especialista", String(idUsuarioEspecialista || "").trim());
+  }
+
+  const url = `${appConfig.googleSheetURL}?${params}`;
+  const res = await fetch(url, { method: "GET", cache: "no-store" });
+  return await res.json();
+}
+
+export async function listarPaquetesArchivo() {
+  const url = `${appConfig.googleSheetURL}?action=listar_paquetes_archivo`;
+  const res = await fetch(url, { method: "GET", cache: "no-store" });
+  return await res.json();
+}
+
+export async function listarExpedientesPorPaquete(idPaqueteArchivo) {
+  const url = `${appConfig.googleSheetURL}?${new URLSearchParams({
+    action: "listar_expedientes_por_paquete",
+    id_paquete_archivo: idPaqueteArchivo
+  })}`;
+  const res = await fetch(url, { method: "GET", cache: "no-store" });
+  return await res.json();
+}
+
+export async function crearPaqueteArchivo(payload) {
+  const res = await fetch(appConfig.googleSheetURL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action: "crear_paquete_archivo", ...payload })
+  });
+  return await res.json();
+}
+
+export async function asignarExpedienteAPaquete(payload) {
+  const res = await fetch(appConfig.googleSheetURL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action: "asignar_expediente_paquete", ...payload })
+  });
+  return await res.json();
+}
+
+export async function asignarExpedientesAPaqueteLote(payload) {
+  const res = await fetch(appConfig.googleSheetURL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action: "asignar_expedientes_paquete_lote", ...payload })
+  });
+  return await res.json();
+}
+
+export async function desasignarExpedienteDePaquete(payload) {
+  const res = await fetch(appConfig.googleSheetURL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action: "desasignar_expediente_paquete", ...payload })
+  });
+  return await res.json();
+}
+
+export async function listarMateriasActivas() {
+  const url = `${appConfig.googleSheetURL}?action=listar_materias_activas`;
+  const res = await fetch(url, { method: "GET", cache: "no-store" });
+  return await res.json();
+}
+
+export async function listarResponsablesActivos() {
+  const url = `${appConfig.googleSheetURL}?action=listar_responsables_activos`;
+  const res = await fetch(url, { method: "GET", cache: "no-store" });
+  return await res.json();
+}
+
+export async function crearPaquete(payload) {
+  const res = await fetch(appConfig.googleSheetURL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action: "crear_paquete", ...payload })
+  });
+  return await res.json();
+}
+
+export async function asignarColorEspecialista(payload) {
+  const res = await fetch(appConfig.googleSheetURL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action: "asignar_color_especialista", ...payload })
+  });
+  return await res.json();
+}

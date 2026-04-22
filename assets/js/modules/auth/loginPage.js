@@ -1,5 +1,6 @@
 import { showToast } from "../../components/toast.js";
 import { authManager } from "../../auth/authManager.js";
+import { icon } from "../../components/icons.js";
 
 export function initLoginPage({ mountNode, onLoginSuccess }) {
   mountNode.innerHTML = `
@@ -9,7 +10,7 @@ export function initLoginPage({ mountNode, onLoginSuccess }) {
         <!-- Logo/Encabezado -->
         <div class="text-center mb-8">
           <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-blue-600 mb-4">
-            <span class="text-3xl">⚖️</span>
+            <span class="text-white">${icon("shieldCheck", "w-8 h-8")}</span>
           </div>
           <h1 class="text-3xl font-bold text-white mb-2">Control de Expedientes</h1>
           <p class="text-slate-300 text-sm">Poder Judicial del Perú | Módulo Civil Sullana</p>
@@ -53,7 +54,7 @@ export function initLoginPage({ mountNode, onLoginSuccess }) {
               id="btn-login"
               class="w-full px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
             >
-              <span id="btn-text">🔐 Validar Acceso</span>
+              <span id="btn-text" class="inline-flex items-center gap-2">${icon("lock", "w-4 h-4")}<span>Validar Acceso</span></span>
               <span id="btn-spinner" class="hidden">
                 <svg class="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                   <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -65,7 +66,7 @@ export function initLoginPage({ mountNode, onLoginSuccess }) {
 
           <!-- Información adicional -->
           <div class="bg-sky-50 border border-sky-200 rounded-lg p-4 text-xs text-sky-800">
-            <p class="font-semibold mb-2">💡 Requisitos de acceso:</p>
+            <p class="font-semibold mb-2 inline-flex items-center gap-2">${icon("sliders", "w-4 h-4")}<span>Requisitos de acceso:</span></p>
             <ul class="space-y-1 ml-4 list-disc">
               <li>Estar registrado en el sistema</li>
               <li>Estado ACTIVO en base de datos</li>
@@ -101,13 +102,13 @@ export function initLoginPage({ mountNode, onLoginSuccess }) {
     
     if (tipo === "error") {
       validationStatus.classList.add("bg-red-50", "text-red-800", "border", "border-red-200");
-      validationStatus.innerHTML = `<strong>❌ Error:</strong> ${mensaje}`;
+      validationStatus.innerHTML = `<strong class="inline-flex items-center gap-2">${icon("target", "w-4 h-4")}<span>Error:</span></strong> ${mensaje}`;
     } else if (tipo === "success") {
       validationStatus.classList.add("bg-green-50", "text-green-800", "border", "border-green-200");
-      validationStatus.innerHTML = `<strong>✅ Éxito:</strong> ${mensaje}`;
+      validationStatus.innerHTML = `<strong class="inline-flex items-center gap-2">${icon("shieldCheck", "w-4 h-4")}<span>Éxito:</span></strong> ${mensaje}`;
     } else if (tipo === "loading") {
       validationStatus.classList.add("bg-blue-50", "text-blue-800", "border", "border-blue-200");
-      validationStatus.innerHTML = `<strong>⏳ Validando...</strong> ${mensaje}`;
+      validationStatus.innerHTML = `<strong class="inline-flex items-center gap-2">${icon("refreshCw", "w-4 h-4")}<span>Validando...</span></strong> ${mensaje}`;
     }
     validationStatus.classList.remove("hidden");
   }

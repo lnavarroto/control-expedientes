@@ -14,16 +14,17 @@ import { juzgadoService } from "../../services/juzgadoService.js";
 import { materiaService } from "../../services/materiaService.js";
 import { ubicacionConfigService } from "../../services/ubicacionConfigService.js";
 import { estadoService } from "../../services/estadoService.js";
+import { icon } from "../../components/icons.js";
 
 const MODULES = [
-  { id: "dashboard", label: "Panel General", description: "Vista general del sistema", icon: "📊", isSpecial: true },
-  { id: "juzgados", label: "Juzgados", description: "Gestión de juzgados", icon: "⚖️" },
-  { id: "materias", label: "Materias", description: "Categorías judiciales", icon: "📚" },
-  { id: "ubicaciones", label: "Ubicaciones", description: "Puntos de archivo", icon: "📍" },
-  { id: "estados", label: "Estados", description: "Estados de expedientes", icon: "🎯" },
-  { id: "perfil", label: "Mi Perfil", description: "Datos del operador", icon: "👤" },
-  { id: "parametros", label: "Parámetros", description: "Configuración del sistema", icon: "⚙️" },
-  { id: "actualizacion", label: "Actualización", description: "Sincronización de datos", icon: "🔄" }
+  { id: "dashboard", label: "Panel General", description: "Vista general del sistema", iconName: "dashboard", isSpecial: true },
+  { id: "juzgados", label: "Juzgados", description: "Gestión de juzgados", iconName: "scales" },
+  { id: "materias", label: "Materias", description: "Categorías judiciales", iconName: "bookOpen" },
+  { id: "ubicaciones", label: "Ubicaciones", description: "Puntos de archivo", iconName: "mapPin" },
+  { id: "estados", label: "Estados", description: "Estados de expedientes", iconName: "target" },
+  { id: "perfil", label: "Mi Perfil", description: "Datos del operador", iconName: "user" },
+  { id: "parametros", label: "Parámetros", description: "Configuración del sistema", iconName: "sliders" },
+  { id: "actualizacion", label: "Actualización", description: "Sincronización de datos", iconName: "refreshCw" }
 ];
 
 function getStats() {
@@ -39,51 +40,79 @@ function renderDashboardModule() {
   const stats = getStats();
   return `
     <div class="space-y-6">
-      ${renderConfigDashboard(stats)}
-      
+
+      <!-- Hero banner configuración -->
+      <div class="relative overflow-hidden rounded-2xl bg-gradient-to-r from-slate-700 via-slate-800 to-indigo-900 p-4 md:p-5 shadow-lg">
+        <div class="absolute top-0 right-0 w-64 h-64 bg-indigo-500 rounded-full -mr-32 -mt-32 opacity-10"></div>
+        <div class="absolute bottom-0 left-0 w-48 h-48 bg-slate-500 rounded-full -ml-24 -mb-24 opacity-10"></div>
+        <div class="relative z-10 flex items-center gap-3">
+          <span class="text-white opacity-90">${icon("sliders", "w-8 h-8 md:w-9 md:h-9")}</span>
+          <div>
+            <h1 class="text-xl md:text-2xl font-bold text-white">Panel de Configuración</h1>
+            <p class="text-slate-300 text-sm font-medium mt-0.5">Gestiona juzgados, materias, estados y parámetros del sistema</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- KPI cards catálogos -->
+      <div>
+        <h2 class="text-lg font-bold text-slate-900 mb-3 flex items-center gap-2">
+          <span class="w-1 h-6 bg-gradient-to-b from-indigo-500 to-slate-600 rounded-full"></span>
+          Catálogos activos
+        </h2>
+        ${renderConfigDashboard(stats)}
+      </div>
+
+      <!-- Info + Accesos rápidos -->
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div class="bg-white rounded-lg shadow border border-slate-200 p-6">
-          <h3 class="font-semibold text-lg mb-4 flex items-center gap-2">
-            <span class="text-xl">📋</span>
+
+        <!-- Info del sistema -->
+        <div class="card-surface p-5">
+          <h3 class="font-semibold text-slate-800 mb-4 flex items-center gap-2">
+            <span class="text-slate-500">${icon("database", "w-4 h-4")}</span>
             Información del Sistema
           </h3>
           <div class="space-y-3 text-sm">
-            <div class="flex justify-between pb-2 border-b border-slate-200">
-              <span class="text-slate-600">Módulo Civil</span>
-              <span class="font-medium">Archivo Sullana</span>
+            <div class="flex justify-between items-center py-2 border-b border-slate-100">
+              <span class="text-slate-600">Módulo</span>
+              <span class="font-semibold text-slate-800">Archivo Sullana</span>
             </div>
-            <div class="flex justify-between pb-2 border-b border-slate-200">
-              <span class="text-slate-600">Fecha Sistema</span>
-              <span class="font-medium">${new Date().toLocaleDateString('es-PE')}</span>
+            <div class="flex justify-between items-center py-2 border-b border-slate-100">
+              <span class="text-slate-600">Fecha del sistema</span>
+              <span class="font-medium text-slate-800">${new Date().toLocaleDateString('es-PE')}</span>
             </div>
-            <div class="flex justify-between pb-2 border-b border-slate-200">
-              <span class="text-slate-600">Total Registros</span>
-              <span class="font-medium badge bg-blue-100 text-blue-800">${juzgadoService.listar().length + materiaService.listar().length + ubicacionConfigService.listar().length}</span>
+            <div class="flex justify-between items-center py-2 border-b border-slate-100">
+              <span class="text-slate-600">Total registros catálogo</span>
+              <span class="badge bg-indigo-100 text-indigo-800 font-semibold">${juzgadoService.listar().length + materiaService.listar().length + ubicacionConfigService.listar().length}</span>
             </div>
-            <div class="flex justify-between">
-              <span class="text-slate-600">Estado</span>
-              <span class="font-medium badge bg-emerald-100 text-emerald-800">✓ Operativo</span>
+            <div class="flex justify-between items-center py-2">
+              <span class="text-slate-600">Estado del sistema</span>
+              <span class="badge bg-emerald-100 text-emerald-800 font-semibold">Operativo</span>
             </div>
           </div>
         </div>
 
-        <div class="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg border border-blue-200 p-6">
-          <h3 class="font-semibold text-lg mb-4 flex items-center gap-2">
-            <span class="text-xl">💡</span>
+        <!-- Accesos rápidos -->
+        <div class="bg-gradient-to-br from-indigo-50 to-slate-50 rounded-xl border border-indigo-200 p-5">
+          <h3 class="font-semibold text-slate-800 mb-4 flex items-center gap-2">
+            <span class="text-indigo-600">${icon("target", "w-4 h-4")}</span>
             Accesos Rápidos
           </h3>
           <div class="space-y-2">
-            <button class="w-full text-left px-4 py-2 rounded bg-white hover:bg-blue-50 transition border border-blue-200 text-sm">
-              → Crear nuevo juzgado
-            </button>
-            <button class="w-full text-left px-4 py-2 rounded bg-white hover:bg-blue-50 transition border border-blue-200 text-sm">
-              → Gestionar materias
-            </button>
-            <button class="w-full text-left px-4 py-2 rounded bg-white hover:bg-blue-50 transition border border-blue-200 text-sm">
-              → Revisar parámetros
-            </button>
+            ${[
+              { label: "Gestionar juzgados",  mod: "juzgados",    iconName: "scales"    },
+              { label: "Gestionar materias",   mod: "materias",    iconName: "bookOpen"  },
+              { label: "Revisar parámetros",   mod: "parametros",  iconName: "sliders"   },
+              { label: "Ver mi perfil",        mod: "perfil",      iconName: "user"      }
+            ].map(a => `
+              <button class="quick-cfg-btn w-full text-left px-4 py-2.5 rounded-lg bg-white hover:bg-indigo-50 transition-colors border border-indigo-100 shadow-sm text-sm flex items-center gap-3 font-medium text-slate-700 hover:text-indigo-700" data-module="${a.mod}">
+                <span class="text-indigo-500">${icon(a.iconName, "w-4 h-4")}</span>
+                ${a.label}
+              </button>
+            `).join("")}
           </div>
         </div>
+
       </div>
     </div>
   `;
@@ -97,21 +126,34 @@ export function initConfiguacionPage({ mountNode }) {
       <div class="grid grid-cols-1 lg:grid-cols-5 gap-6">
         <!-- Sidebar -->
         <aside class="lg:col-span-1">
-          <div class="bg-white rounded-lg shadow border border-slate-200 p-4 sticky top-4">
-            <h2 class="font-bold text-sm uppercase tracking-wide text-slate-700 mb-4 px-2">Centro de Control</h2>
-            ${renderConfigMenu(MODULES, currentModule)}
+          <div class="bg-white rounded-xl shadow border border-slate-200 overflow-hidden sticky top-4">
+            <!-- Sidebar header gradient -->
+            <div class="relative bg-gradient-to-br from-slate-700 via-slate-800 to-indigo-900 px-4 py-4">
+              <div class="absolute top-0 right-0 w-20 h-20 bg-indigo-500 rounded-full -mr-10 -mt-10 opacity-10"></div>
+              <div class="relative z-10 flex items-center gap-2">
+                <span class="text-white opacity-80">${icon("sliders", "w-5 h-5")}</span>
+                <div>
+                  <p class="text-xs font-bold uppercase tracking-widest text-slate-300">Centro de</p>
+                  <p class="text-sm font-bold text-white leading-tight">Configuración</p>
+                </div>
+              </div>
+            </div>
+            <div class="p-3">
+              ${renderConfigMenu(MODULES, currentModule)}
+            </div>
           </div>
         </aside>
 
         <!-- Contenido Principal -->
         <main class="lg:col-span-4">
           <div class="space-y-4">
-            <div class="flex items-center justify-between">
-              <div>
-                <h1 id="module-title" class="text-3xl font-bold text-slate-900"></h1>
-                <p id="module-desc" class="text-slate-600 mt-1"></p>
+            <!-- Module header -->
+            <div class="card-surface p-4 flex items-center gap-4">
+              <div class="p-2.5 rounded-xl bg-gradient-to-br from-slate-100 to-slate-200 text-slate-700 shadow-sm" id="module-icon"></div>
+              <div class="flex-1 min-w-0">
+                <h1 id="module-title" class="text-xl md:text-2xl font-bold text-slate-900 leading-tight"></h1>
+                <p id="module-desc" class="text-sm text-slate-500 mt-0.5"></p>
               </div>
-              <div class="text-5xl" id="module-icon"></div>
             </div>
             
             <div id="module-content" class="space-y-6"></div>
@@ -128,7 +170,7 @@ export function initConfiguacionPage({ mountNode }) {
     // Actualizar header
     document.getElementById("module-title").textContent = module.label;
     document.getElementById("module-desc").textContent = module.description;
-    document.getElementById("module-icon").textContent = module.icon;
+    document.getElementById("module-icon").innerHTML = icon(module.iconName || "dashboard", "w-6 h-6");
 
     // Actualizar contenido
     const contentContainer = document.getElementById("module-content");
@@ -136,6 +178,10 @@ export function initConfiguacionPage({ mountNode }) {
 
     if (moduleId === "dashboard") {
       contentContainer.innerHTML = renderDashboardModule();
+      // Conectar accesos rápidos del dashboard al router interno
+      contentContainer.querySelectorAll(".quick-cfg-btn").forEach(btn => {
+        btn.addEventListener("click", () => switchModule(btn.dataset.module));
+      });
     } else {
       // Contenedor para módulos
       const moduleNode = document.createElement("div");
@@ -169,11 +215,20 @@ export function initConfiguacionPage({ mountNode }) {
 
     // Actualizar menu activo
     document.querySelectorAll(".config-menu-item").forEach(btn => {
-      btn.classList.remove("bg-blue-600", "text-white", "shadow-md");
-      btn.classList.add("text-slate-700", "hover:bg-slate-100");
-      if (btn.dataset.module === moduleId) {
-        btn.classList.remove("text-slate-700", "hover:bg-slate-100");
-        btn.classList.add("bg-blue-600", "text-white", "shadow-md");
+      const isActive = btn.dataset.module === moduleId;
+      btn.classList.toggle("bg-gradient-to-r",       isActive);
+      btn.classList.toggle("from-indigo-600",         isActive);
+      btn.classList.toggle("to-slate-700",            isActive);
+      btn.classList.toggle("text-white",              isActive);
+      btn.classList.toggle("shadow-md",               isActive);
+      btn.classList.toggle("text-slate-700",          !isActive);
+      btn.classList.toggle("hover:bg-slate-100",      !isActive);
+      btn.classList.toggle("hover:text-slate-900",    !isActive);
+      // icono interno
+      const iconSpan = btn.querySelector("span");
+      if (iconSpan) {
+        iconSpan.classList.toggle("text-white",       isActive);
+        iconSpan.classList.toggle("text-slate-500",   !isActive);
       }
     });
   }

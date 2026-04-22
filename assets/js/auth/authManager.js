@@ -93,6 +93,16 @@ export class AuthManager {
         };
       }
 
+      // Verificar que tiene acceso al sistema
+      const acceso = String(usuario.acceso_sistema || "").trim().toUpperCase();
+      if (acceso !== "SI") {
+        return {
+          success: false,
+          message: "Usuario sin acceso al sistema. Contacte al administrador.",
+          trabajador: null
+        };
+      }
+
       // Trabajador válido - guardar en memoria y localStorage
       this.trabajador = {
         id_usuario: usuario.id_usuario,
@@ -103,8 +113,9 @@ export class AuthManager {
         telefono: usuario.telefono,
         cargo: usuario.cargo,
         area_modulo: usuario.area_modulo,
-        rol: usuario.rol,
+        id_rol: usuario.id_rol,
         activo: usuario.activo,
+        acceso_sistema: usuario.acceso_sistema,
         validado_en: new Date().toISOString()
       };
 
@@ -165,10 +176,25 @@ export class AuthManager {
   }
 
   /**
-   * Obtener rol del trabajador
+   * Obtener id_rol del trabajador
    */
   getRol() {
-    return this.trabajador?.rol || null;
+    return this.trabajador?.id_rol || null;
+  }
+
+  /**
+   * Mapa de roles para comparaciones legibles
+   * Uso: if (this.getRol() === AuthManager.roles.ADMIN)
+   */
+  static get roles() {
+    return {
+      ADMIN: "ROL0001",
+      ARCH:  "ROL0002",
+      MDP:   "ROL0003",
+      LECT:  "ROL0004",
+      ESP:   "ROL0005",
+      ASI:   "ROL0006"
+    };
   }
 }
 

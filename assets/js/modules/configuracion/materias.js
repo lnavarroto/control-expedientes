@@ -6,6 +6,7 @@ import { materiaService } from "../../services/materiaService.js";
 import { renderTable } from "../../components/table.js";
 import { showToast } from "../../components/toast.js";
 import { openModal } from "../../components/modal.js";
+import { icon } from "../../components/icons.js";
 
 function renderMateriasTable(materias) {
   const rows = materias.map(m => ({
@@ -16,8 +17,8 @@ function renderMateriasTable(materias) {
     estado: `<span class="badge ${m.activo ? 'bg-blue-100 text-blue-800' : 'bg-slate-100 text-slate-800'}">${m.activo ? '✓ Activo' : '✗ Inactivo'}</span>`,
     acciones: `
       <div class="flex gap-2">
-        <button class="btn btn-secondary text-xs" data-action="editar" data-id="${m.id}">Editar</button>
-        <button class="btn btn-secondary text-xs" data-action="toggle" data-id="${m.id}">${m.activo ? 'Desactivar' : 'Activar'}</button>
+        <button class="btn btn-secondary text-xs inline-flex items-center gap-1" data-action="editar" data-id="${m.id}">${icon("edit", "w-3 h-3")}<span>Editar</span></button>
+        <button class="btn btn-secondary text-xs inline-flex items-center gap-1" data-action="toggle" data-id="${m.id}">${m.activo ? icon("deactivate", "w-3 h-3") : icon("activate", "w-3 h-3")}<span>${m.activo ? 'Desactivar' : 'Activar'}</span></button>
       </div>
     `
   }));

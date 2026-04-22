@@ -1,9 +1,12 @@
 import { showToast } from "../../components/toast.js";
 import { openModal } from "../../components/modal.js";
+import { statusBadge } from "../../components/statusBadge.js";
+import { icon } from "../../components/icons.js";
 import { expedienteService } from "../../services/expedienteService.js";
 import { validarNumeroExpediente } from "../../utils/validators.js";
 import { parsearLectora } from "../../utils/lectora.js";
 import { formatearExpediente } from "../expedientes/expedientesMapeo.js";
+import { ALERT_TONES, CARD_TONES } from "../../core/uiTokens.js";
 
 const ITEMS_POR_PAGINA = 10;
 
@@ -25,7 +28,7 @@ function renderTablaExpedientes(expedientes, paginaActual = 1, itemsPorPagina = 
     return {
       html: `
         <div class="card-surface p-8 text-center">
-          <p class="text-slate-500 font-medium mb-2">📭 No se encontraron expedientes</p>
+          <p class="text-slate-500 font-medium mb-2">No se encontraron expedientes</p>
           <p class="text-xs text-slate-400">Ajusta filtros para ver resultados</p>
         </div>
       `,
@@ -49,11 +52,7 @@ function renderTablaExpedientes(expedientes, paginaActual = 1, itemsPorPagina = 
   const filas = expedientesPagina.map((exp, indexEnPagina) => {
     const formateado = formatearExpediente(exp);
     const numeroGlobal = idExpToNumber(exp.id_expediente) || (expedientesOrdenados.length - inicio - indexEnPagina);
-    const estadoHtml = `
-      <span class="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold bg-${formateado.estadoColor}-100 text-${formateado.estadoColor}-700">
-        • ${formateado.estado}
-      </span>
-    `;
+    const estadoHtml = statusBadge(formateado.estado);
 
     return `
       <tr class="hover:bg-slate-50 transition-colors" data-numero="${formateado.numero}">
@@ -66,7 +65,7 @@ function renderTablaExpedientes(expedientes, paginaActual = 1, itemsPorPagina = 
         <td class="px-4 py-3 border-t border-slate-100">${estadoHtml}</td>
         <td class="px-4 py-3 border-t border-slate-100 text-sm text-slate-700">${formateado.registradoPor}</td>
         <td class="px-4 py-3 border-t border-slate-100 text-center">
-          <button class="btn btn-secondary text-xs btn-ver-detalles" data-numero="${formateado.numero}">👁️ Ver</button>
+          <button class="btn btn-secondary text-xs btn-ver-detalles inline-flex items-center gap-1" data-numero="${formateado.numero}">${icon("eye", "w-3.5 h-3.5")}<span>Ver</span></button>
         </td>
       </tr>
     `;
@@ -159,7 +158,7 @@ function abrirModalDetalles(expediente) {
   modal.innerHTML = `
     <div class="bg-white rounded-lg shadow-2xl max-w-2xl w-full my-8 p-6 space-y-4">
       <div class="flex items-center justify-between">
-        <h2 class="text-2xl font-bold text-slate-900">📋 Detalles del Expediente</h2>
+          <h2 class="text-2xl font-bold text-slate-900">Detalles del Expediente</h2>
         <button class="btn-cerrar text-slate-500 hover:text-slate-700 font-bold text-2xl">✕</button>
       </div>
 
@@ -190,7 +189,7 @@ function abrirModalDetalles(expediente) {
         </div>
         <div>
           <p class="text-xs uppercase tracking-wider font-bold text-slate-600">Estado</p>
-          <p class="text-base"><span class="inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-semibold bg-${formateado.estadoColor}-100 text-${formateado.estadoColor}-700">• ${formateado.estado}</span></p>
+          <p class="text-base">${statusBadge(formateado.estado)}</p>
         </div>
         <div>
           <p class="text-xs uppercase tracking-wider font-bold text-slate-600">Incidente</p>
@@ -275,9 +274,11 @@ function filtrarExpedientesBackend(expedientes, filtros) {
 }
 
 export async function initBusquedaPage({ mountNode }) {
+  const toneInfo = ALERT_TONES.info;
+
   mountNode.innerHTML = `
     <section class="card-surface p-8 text-center">
-      <p class="text-slate-500 font-medium">🔎 Cargando búsqueda avanzada...</p>
+      <p class="text-slate-500 font-medium inline-flex items-center gap-2">${icon("busqueda", "w-4 h-4")}<span>Cargando búsqueda avanzada...</span></p>
     </section>
   `;
 
@@ -326,7 +327,7 @@ export async function initBusquedaPage({ mountNode }) {
       button.addEventListener("click", () => {
         const expediente = resultados.find((item) => String(item.numero_expediente) === String(button.dataset.numero));
         if (!expediente) {
-          showToast("❌ Expediente no encontrado", "error");
+          showToast("Expediente no encontrado", "error");
           return;
         }
         abrirModalDetalles(expediente);
@@ -374,8 +375,8 @@ export async function initBusquedaPage({ mountNode }) {
           <p class="text-sm text-slate-500">Busca expedientes con el mismo formato y acciones del listado principal.</p>
         </div>
         <div class="flex gap-2">
-          <button id="btn-buscar-manual" class="btn btn-secondary" title="Búsqueda manual">🖱️ Manual</button>
-          <button id="btn-buscar-lectora" class="btn btn-secondary" title="Búsqueda por lectora">📱 Lectora</button>
+          <button id="btn-buscar-manual" class="btn btn-secondary inline-flex items-center gap-2" title="Búsqueda manual">${icon("edit", "w-4 h-4")}<span>Manual</span></button>
+          <button id="btn-buscar-lectora" class="btn btn-secondary inline-flex items-center gap-2" title="Búsqueda por lectora">${icon("scan", "w-4 h-4")}<span>Lectora</span></button>
         </div>
       </div>
 
@@ -390,8 +391,8 @@ export async function initBusquedaPage({ mountNode }) {
         <input id="f-paquete" class="input-base" placeholder="Código de paquete" />
         <input id="f-fecha" type="date" class="input-base md:col-span-2" />
         <div class="md:col-span-3 flex justify-end gap-3">
-          <button id="btn-ejecutar-busqueda" class="btn btn-primary">Buscar expedientes</button>
-          <button id="btn-limpiar-busqueda" class="btn btn-secondary">Limpiar</button>
+          <button id="btn-ejecutar-busqueda" class="btn btn-primary inline-flex items-center gap-2">${icon("busqueda", "w-4 h-4")}<span>Buscar expedientes</span></button>
+          <button id="btn-limpiar-busqueda" class="btn btn-secondary inline-flex items-center gap-2">${icon("refreshCw", "w-4 h-4")}<span>Limpiar</span></button>
         </div>
       </div>
     </section>
@@ -416,18 +417,19 @@ export async function initBusquedaPage({ mountNode }) {
     let html = '';
     
     if (estado === "pendiente") {
-      html = `<div class="px-3 py-2 rounded-lg border border-slate-300 bg-slate-50 text-sm text-slate-600">
-        Modo ${esLectora ? "lectora 📱" : "manual 🖱️"} - Esperando entrada...
+      const t = ALERT_TONES.neutral;
+      html = `<div class="px-3 py-2 rounded-lg border ${t.border} ${t.surface} text-sm ${t.text}">
+        Modo ${esLectora ? "lectora" : "manual"} - Esperando entrada...
       </div>`;
     } else if (estado === "valido") {
-      const icono = esLectora ? "📱" : "🖱️";
-      html = `<div class="px-3 py-2 rounded-lg border-2 border-green-400 bg-green-50 text-sm font-semibold text-green-700">
-        ${icono} Válido - Buscando...
+      const t = ALERT_TONES.success;
+      html = `<div class="px-3 py-2 rounded-lg border-2 ${t.border} ${t.surface} text-sm font-semibold ${t.text}">
+        Válido - Buscando...
       </div>`;
     } else if (estado === "invalido") {
-      const icono = esLectora ? "📱" : "🖱️";
-      html = `<div class="px-3 py-2 rounded-lg border-2 border-red-400 bg-red-50 text-sm font-semibold text-red-700">
-        ${icono} Inválido - Revisar formato
+      const t = ALERT_TONES.danger;
+      html = `<div class="px-3 py-2 rounded-lg border-2 ${t.border} ${t.surface} text-sm font-semibold ${t.text}">
+        Inválido - Revisar formato
       </div>`;
     }
     
@@ -484,7 +486,7 @@ export async function initBusquedaPage({ mountNode }) {
     expedienteInput.value = "";
     expedienteInput.focus();
     actualizarChipBusqueda("pendiente", false);
-    showToast("🖱️ Búsqueda manual", "info");
+    showToast("Búsqueda manual", "info");
   });
 
   document.getElementById("btn-buscar-lectora")?.addEventListener("click", () => {
@@ -494,13 +496,13 @@ export async function initBusquedaPage({ mountNode }) {
     actualizarChipBusqueda("pendiente", true);
     
     openModal({
-      title: "📱 Modo Lectora - Búsqueda de Expedientes",
+      title: "Modo Lectora - Búsqueda de Expedientes",
       content: `
         <div class="space-y-4">
           <p class="text-base font-medium text-slate-700">Buscar utilizando código de barras</p>
           
-          <div class="bg-sky-50 border border-sky-300 rounded-lg p-4 space-y-2">
-            <p class="text-sm text-sky-900 font-semibold">📋 Instrucciones:</p>
+          <div class="${toneInfo.surface} border ${toneInfo.border} rounded-lg p-4 space-y-2">
+            <p class="text-sm ${toneInfo.text} font-semibold inline-flex items-center gap-2">${icon("list", "w-4 h-4")}<span>Instrucciones:</span></p>
             <ol class="text-sm text-sky-800 space-y-2 ml-4 list-decimal">
               <li>Acerca el código de barras al escáner</li>
               <li>El código se ingresará automáticamente</li>
@@ -509,15 +511,15 @@ export async function initBusquedaPage({ mountNode }) {
             </ol>
           </div>
           
-          <div class="bg-amber-50 border border-amber-200 rounded-lg p-3">
-            <p class="text-xs text-amber-800">💡 También puedes buscar por: N° expediente, materia, juzgado o palabras clave</p>
+          <div class="${ALERT_TONES.warning.surface} border ${ALERT_TONES.warning.border} rounded-lg p-3">
+            <p class="text-xs ${ALERT_TONES.warning.text}">También puedes buscar por: N° expediente, materia, juzgado o palabras clave</p>
           </div>
         </div>
       `,
       confirmText: "Entendido",
       onConfirm: (close) => {
         close();
-        showToast("📱 Escanea el código para buscar", "success");
+        showToast("Escanea el código para buscar", "success");
       }
     });
   });

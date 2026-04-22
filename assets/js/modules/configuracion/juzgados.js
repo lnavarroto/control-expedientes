@@ -14,11 +14,11 @@ function renderJuzgadosTable(juzgados) {
     nombre: j.nombre,
     tipo: j.tipo,
     abreviatura: j.abreviatura,
-    estado: `<span class="badge ${j.activo ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-800'}">${j.activo ? '✓ Activo' : '✗ Inactivo'}</span>`,
+    estado: `<span class="badge ${j.activo ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-800'}">${j.activo ? 'Activo' : 'Inactivo'}</span>`,
     acciones: `
       <div class="flex gap-2">
-        <button class="btn btn-secondary text-xs" data-action="editar" data-id="${j.id}">Editar</button>
-        <button class="btn btn-secondary text-xs" data-action="toggle" data-id="${j.id}">${j.activo ? 'Desactivar' : 'Activar'}</button>
+        <button class="btn btn-secondary text-xs inline-flex items-center gap-1" data-action="editar" data-id="${j.id}">${icon("edit", "w-3 h-3")}<span>Editar</span></button>
+        <button class="btn btn-secondary text-xs inline-flex items-center gap-1" data-action="toggle" data-id="${j.id}">${j.activo ? icon("deactivate", "w-3 h-3") : icon("activate", "w-3 h-3")}<span>${j.activo ? 'Desactivar' : 'Activar'}</span></button>
       </div>
     `
   }));
@@ -90,7 +90,7 @@ export function initJuzgadosModule(mountNode) {
   mountNode.innerHTML = `
     <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
       <div>
-        <h3 class="font-semibold text-lg">⚖️ Gestión de Juzgados</h3>
+        <h3 class="font-semibold text-lg">Gestión de Juzgados</h3>
         <p class="text-sm text-slate-500">Registra y administra los juzgados del sistema</p>
       </div>
       <button id="btn-nuevo-juzgado" class="btn btn-primary">+ Nuevo juzgado</button>

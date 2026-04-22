@@ -3,6 +3,8 @@
  */
 
 import { openModal } from "../../components/modal.js";
+import { statusBadge } from "../../components/statusBadge.js";
+import { icon } from "../../components/icons.js";
 import { showToast } from "../../components/toast.js";
 import { expedienteService } from "../../services/expedienteService.js";
 import { estadoService } from "../../services/estadoService.js";
@@ -16,6 +18,41 @@ import {
   obtenerNombreJuzgado,
   formatearExpediente
 } from "./expedientesMapeo.js";
+import { ALERT_TONES, CARD_TONES } from "../../core/uiTokens.js";
+
+let catalogosEdicionPromise = null;
+
+async function fetchCatalogo(baseURL, action) {
+  try {
+    const res = await fetch(`${baseURL}?action=${action}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const json = await res.json();
+    return json.success && Array.isArray(json.data) ? json.data : [];
+  } catch (e) {
+    console.warn(`⚠️ Error cargando catálogo ${action}:`, e.message);
+    return [];
+  }
+}
+
+async function getCatalogosEdicion() {
+  if (!catalogosEdicionPromise) {
+    const baseURL = appConfig.googleSheetURL;
+    catalogosEdicionPromise = Promise.all([
+      fetchCatalogo(baseURL, "listar_estados_activos"),
+      fetchCatalogo(baseURL, "listar_estados_sistema_activos"),
+      fetchCatalogo(baseURL, "listar_responsables_activos")
+    ]).then(([estados, estadosSistema, especialistas]) => ({
+      estados,
+      estadosSistema,
+      especialistas
+    }));
+  }
+  return catalogosEdicionPromise;
+}
+
+function resetCatalogosEdicion() {
+  catalogosEdicionPromise = null;
+}
 
 /**
  * Renderizar tabla de expedientes del backend con paginación
@@ -25,7 +62,7 @@ function renderTablaExpedientes(expedientes, paginaActual = 1, itemsPorPagina = 
     return {
       html: `
         <div class="card-surface p-8 text-center">
-          <p class="text-slate-500 font-medium mb-2">📭 No hay expedientes registrados</p>
+          <p class="text-slate-500 font-medium mb-2">No hay expedientes registrados</p>
           <p class="text-xs text-slate-400">Los expedientes aparecerán aquí cuando se registren nuevos</p>
         </div>
       `,
@@ -56,12 +93,7 @@ function renderTablaExpedientes(expedientes, paginaActual = 1, itemsPorPagina = 
     const formateado = formatearExpediente(exp);
     // Mostrar ORDEN con el correlativo real de id_expediente
     const numeroGlobal = idExpToNumber(exp.id_expediente) || (expedientesOrdenados.length - inicio - indexEnPagina);
-    const estadoHtml = `
-      <span class="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold 
-        bg-${formateado.estadoColor}-100 text-${formateado.estadoColor}-700">
-        • ${formateado.estado}
-      </span>
-    `;
+    const estadoHtml = statusBadge(formateado.estado);
 
     return `
       <tr class="hover:bg-slate-50 transition-colors" data-numero="${formateado.numero}">
@@ -74,7 +106,7 @@ function renderTablaExpedientes(expedientes, paginaActual = 1, itemsPorPagina = 
         <td class="px-4 py-3 border-t border-slate-100">${estadoHtml}</td>
         <td class="px-4 py-3 border-t border-slate-100 text-sm text-slate-700">${formateado.registradoPor}</td>
         <td class="px-4 py-3 border-t border-slate-100">
-          <button class="btn btn-secondary text-xs btn-ver-detalles" data-numero="${formateado.numero}">👁️ Ver</button>
+          <button class="btn btn-secondary text-xs btn-ver-detalles inline-flex items-center gap-1" data-numero="${formateado.numero}">${icon("eye", "w-3.5 h-3.5")}<span>Ver</span></button>
         </td>
       </tr>
     `;
@@ -275,8 +307,8 @@ function renderPanelFiltradores(expedientes, filtros = {}) {
     .join("");
 
   return `
-    <div class="card-surface p-4 space-y-3 bg-gradient-to-br from-slate-50 to-slate-100">
-      <h4 class="font-bold text-slate-700 mb-3">🔍 Filtros</h4>
+    <div class="card-surface p-4 space-y-3 bg-gradient-to-br ${CARD_TONES.neutral.surface}">
+      <h4 class="font-bold text-slate-700 mb-3 inline-flex items-center gap-2">${icon("busqueda", "w-4 h-4")}<span>Filtros</span></h4>
       
       <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
         <div>
@@ -308,8 +340,8 @@ function renderPanelFiltradores(expedientes, filtros = {}) {
       </div>
 
       <div class="flex gap-2 justify-end">
-        <button id="btn-filtrar" class="btn btn-primary text-sm md:text-base px-5 py-2.5">🔍 Filtrar</button>
-        <button id="btn-limpiar-filtros" class="btn btn-secondary text-sm md:text-base px-5 py-2.5">🧹 Limpiar</button>
+        <button id="btn-filtrar" class="btn btn-primary text-sm md:text-base px-5 py-2.5 inline-flex items-center gap-2">${icon("busqueda", "w-4 h-4")}<span>Filtrar</span></button>
+        <button id="btn-limpiar-filtros" class="btn btn-secondary text-sm md:text-base px-5 py-2.5 inline-flex items-center gap-2">${icon("refreshCw", "w-4 h-4")}<span>Limpiar</span></button>
       </div>
     </div>
   `;
@@ -342,7 +374,7 @@ export async function initListadoPage({ mountNode, forceRefresh = false }) {
   // Si no hay caché, mostrar spinner mientras carga
   mountNode.innerHTML = `
     <div class="text-center py-8">
-      <p class="text-slate-500 font-medium">📂 Cargando expedientes...</p>
+      <p class="text-slate-500 font-medium inline-flex items-center gap-2">${icon("archiveBox", "w-4 h-4")}<span>Cargando expedientes...</span></p>
       <div class="mt-4 inline-block">
         <div class="animate-spin inline-block w-6 h-6 border-4 border-slate-300 border-t-blue-500 rounded-full"></div>
       </div>
@@ -354,11 +386,12 @@ export async function initListadoPage({ mountNode, forceRefresh = false }) {
     const resultado = await expedienteService.listarDelBackend({ forceRefresh });
 
     if (!resultado.success || !resultado.data) {
+      const t = ALERT_TONES.warning;
       mountNode.innerHTML = `
-        <div class="card-surface p-8 text-center border-l-4 border-orange-400 bg-orange-50">
-          <p class="text-orange-800 font-semibold">⚠️ Error al cargar expedientes</p>
-          <p class="text-sm text-orange-700 mt-1">No se pudo conectar con el backend. Intenta recargar.</p>
-          <button onclick="location.reload()" class="btn btn-primary mt-4">🔄 Recargar</button>
+        <div class="card-surface p-8 text-center border-l-4 ${t.border} ${t.surface}">
+          <p class="${t.text} font-semibold">Error al cargar expedientes</p>
+          <p class="text-sm ${t.text} mt-1">No se pudo conectar con el backend. Intenta recargar.</p>
+          <button onclick="location.reload()" class="btn btn-primary mt-4 inline-flex items-center gap-2">${icon("refreshCw", "w-4 h-4")}<span>Recargar</span></button>
         </div>
       `;
       return;
@@ -367,10 +400,11 @@ export async function initListadoPage({ mountNode, forceRefresh = false }) {
     renderListadoExpedientes(resultado.data, mountNode);
   } catch (error) {
     console.error("Error en listadoPage:", error);
+    const t = ALERT_TONES.danger;
     mountNode.innerHTML = `
-      <div class="card-surface p-8 text-center border-l-4 border-red-400 bg-red-50">
-        <p class="text-red-800 font-semibold">❌ Error</p>
-        <p class="text-sm text-red-700 mt-1">${error.message}</p>
+      <div class="card-surface p-8 text-center border-l-4 ${t.border} ${t.surface}">
+        <p class="${t.text} font-semibold">Error</p>
+        <p class="text-sm ${t.text} mt-1">${error.message}</p>
       </div>
     `;
   }
@@ -390,6 +424,25 @@ function renderListadoExpedientes(expedientes, mountNode) {
     texto: ""
   };
 
+  const CUSTOM_MODAL_SELECTOR = ".ce-custom-modal";
+
+  function cerrarModalActivo() {
+    document.querySelector(CUSTOM_MODAL_SELECTOR)?.remove();
+  }
+
+  function crearModal(contenidoHtml) {
+    cerrarModalActivo();
+    const modal = document.createElement("div");
+    modal.className = "ce-custom-modal fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto";
+    modal.innerHTML = contenidoHtml;
+    document.body.appendChild(modal);
+    return modal;
+  }
+
+  getCatalogosEdicion().catch(() => {
+    // precarga silenciosa
+  });
+
   const renderHTML = () => {
     const resultado = renderTablaExpedientes(expedientesFiltrados, paginaActual, itemsPorPagina);
     const totalPaginas = resultado.totalPaginas;
@@ -398,10 +451,10 @@ function renderListadoExpedientes(expedientes, mountNode) {
       <section>
         <div class="flex items-center justify-between mb-4">
           <div>
-            <h2 class="text-xl font-bold text-slate-900">📋 Expedientes Registrados</h2>
+            <h2 class="text-xl font-bold text-slate-900 inline-flex items-center gap-2">${icon("archiveBox", "w-5 h-5")}<span>Expedientes Registrados</span></h2>
             <p class="text-sm text-slate-600 mt-1">Total: <span class="font-bold">${expedientesFiltrados.length}</span> de <span class="font-bold">${expedientes.length}</span></p>
           </div>
-          <button id="btn-recargar" class="btn btn-secondary">🔄 Recargar</button>
+          <button id="btn-recargar" class="btn btn-secondary inline-flex items-center gap-2">${icon("refreshCw", "w-4 h-4")}<span>Recargar</span></button>
         </div>
 
         ${renderPanelFiltradores(expedientes, filtrosActivos)}
@@ -420,26 +473,7 @@ function renderListadoExpedientes(expedientes, mountNode) {
    */
   async function abrirModalEditar(expediente) {
     const formateado = formatearExpediente(expediente);
-    const baseURL = appConfig.googleSheetURL;
-
-    // --- Cargar catálogos dinámicamente desde Apps Script ---
-    async function fetchCatalogo(action) {
-      try {
-        const res = await fetch(`${baseURL}?action=${action}`);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const json = await res.json();
-        return json.success && Array.isArray(json.data) ? json.data : [];
-      } catch (e) {
-        console.warn(`⚠️ Error cargando catálogo ${action}:`, e.message);
-        return [];
-      }
-    }
-
-    const [estados, estadosSistema, especialistas] = await Promise.all([
-      fetchCatalogo("listar_estados_activos"),
-      fetchCatalogo("listar_estados_sistema_activos"),
-      fetchCatalogo("listar_especialistas_activos")
-    ]);
+    const { estados, estadosSistema, especialistas } = await getCatalogosEdicion();
 
     // --- Generar opciones ---
     const optionsEstados = estados.map(e =>
@@ -451,12 +485,10 @@ function renderListadoExpedientes(expedientes, mountNode) {
     ).join('');
 
     const optionsEspecialistas = especialistas.map(esp =>
-      `<option value="${esp.id_especialista}" ${String(esp.id_especialista) === String(expediente.id_especialista) ? 'selected' : ''}>${esp.nombre_completo}</option>`
+      `<option value="${esp.id_usuario}" ${String(esp.id_usuario) === String(expediente.id_usuario_responsable) ? 'selected' : ''}>${esp.nombre_completo}</option>`
     ).join('');
 
-    const modal = document.createElement("div");
-    modal.className = "fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto";
-    modal.innerHTML = `
+    const modal = crearModal(`
       <div class="bg-white rounded-lg shadow-2xl max-w-3xl w-full my-8 p-6 space-y-4">
         <div class="flex items-center justify-between">
           <h2 class="text-2xl font-bold text-slate-900">✏️ Editar Expediente</h2>
@@ -487,13 +519,13 @@ function renderListadoExpedientes(expedientes, mountNode) {
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <!-- Juzgado solo lectura -->
             <div>
-              <label class="block text-xs uppercase tracking-wider font-bold text-blue-700 mb-2">🏛️ Juzgado</label>
+              <label class="block text-xs uppercase tracking-wider font-bold text-blue-700 mb-2">Juzgado</label>
               <input type="text" class="edit-juzgado w-full px-3 py-2 border-2 border-blue-200 rounded bg-slate-100 text-slate-600" value="${formateado.juzgado}" readonly />
             </div>
 
             <!-- Estado del Expediente en Archivo -->
             <div>
-              <label class="block text-xs uppercase tracking-wider font-bold text-green-700 mb-2">📦 Estado del Expediente</label>
+              <label class="block text-xs uppercase tracking-wider font-bold text-green-700 mb-2">Estado del Expediente</label>
               <select class="edit-estado w-full px-3 py-2 border-2 border-green-300 rounded focus:border-green-500 focus:ring-2 focus:ring-green-200 bg-green-50">
                 <option value="">-- Seleccionar Estado --</option>
                 ${optionsEstados}
@@ -502,7 +534,7 @@ function renderListadoExpedientes(expedientes, mountNode) {
 
             <!-- Estado del Sistema -->
             <div>
-              <label class="block text-xs uppercase tracking-wider font-bold text-indigo-700 mb-2">⚖️ Estado del Sistema</label>
+              <label class="block text-xs uppercase tracking-wider font-bold text-indigo-700 mb-2">Estado del Sistema</label>
               <select class="edit-estado-sistema w-full px-3 py-2 border-2 border-indigo-300 rounded focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 bg-indigo-50">
                 <option value="">-- Seleccionar Estado --</option>
                 ${optionsEstadosSistema}
@@ -511,14 +543,14 @@ function renderListadoExpedientes(expedientes, mountNode) {
 
             <!-- Ubicación editable -->
             <div>
-              <label class="block text-xs uppercase tracking-wider font-bold text-amber-700 mb-2">📍 Ubicación</label>
+              <label class="block text-xs uppercase tracking-wider font-bold text-amber-700 mb-2">Ubicación</label>
               <input type="text" class="edit-ubicacion w-full px-3 py-2 border-2 border-amber-300 rounded focus:border-amber-500 focus:ring-2 focus:ring-amber-200 bg-amber-50" 
                 value="${formateado.ubicacion}" placeholder="Ej: Estante, Archivo A-1" />
             </div>
 
             <!-- Especialista editable -->
             <div>
-              <label class="block text-xs uppercase tracking-wider font-bold text-purple-700 mb-2">👤 Especialista Asignado</label>
+              <label class="block text-xs uppercase tracking-wider font-bold text-purple-700 mb-2">Especialista Asignado</label>
               <select class="edit-especialista w-full px-3 py-2 border-2 border-purple-300 rounded focus:border-purple-500 focus:ring-2 focus:ring-purple-200 bg-purple-50">
                 <option value="">-- Seleccionar Especialista --</option>
                 ${optionsEspecialistas}
@@ -528,7 +560,7 @@ function renderListadoExpedientes(expedientes, mountNode) {
 
           <!-- Observaciones -->
           <div>
-            <label class="block text-xs uppercase tracking-wider font-bold text-slate-600 mb-2">📝 Observaciones</label>
+            <label class="block text-xs uppercase tracking-wider font-bold text-slate-600 mb-2">Observaciones</label>
             <textarea class="edit-observaciones w-full px-3 py-2 border-2 border-slate-300 rounded focus:border-slate-500 focus:ring-2 focus:ring-slate-200 font-mono text-sm bg-slate-50" 
               rows="3" placeholder="Notas adicionales sobre el expediente...">${expediente.observaciones || ""}</textarea>
           </div>
@@ -536,20 +568,19 @@ function renderListadoExpedientes(expedientes, mountNode) {
           <!-- Info de campos editables -->
           <div class="bg-gradient-to-r from-blue-50 to-purple-50 border-l-4 border-purple-500 rounded-lg p-4">
             <p class="text-sm font-semibold text-slate-800">
-              ✅ <strong>Campos editables:</strong> Estado del Expediente, Estado del Sistema, Ubicación, Especialista y Observaciones
+              <strong>Campos editables:</strong> Estado del Expediente, Estado del Sistema, Ubicación, Especialista y Observaciones
             </p>
           </div>
         </form>
         <div class="flex gap-2 justify-end pt-4 border-t border-slate-200">
           <button class="btn-cancelar px-4 py-2 rounded border border-slate-300 text-slate-700 hover:bg-slate-50 font-medium">Cancelar</button>
-          <button class="btn-guardar px-4 py-2 rounded bg-green-500 text-white hover:bg-green-600 font-medium">✅ Guardar Cambios</button>
+          <button class="btn-guardar btn btn-primary">Guardar Cambios</button>
         </div>
       </div>
-    `;
-    document.body.appendChild(modal);
+    `);
 
-    modal.querySelector(".btn-cerrar").addEventListener("click", () => modal.remove());
-    modal.querySelector(".btn-cancelar").addEventListener("click", () => modal.remove());
+    modal.querySelector(".btn-cerrar").addEventListener("click", cerrarModalActivo);
+    modal.querySelector(".btn-cancelar").addEventListener("click", cerrarModalActivo);
     
     modal.querySelector(".btn-guardar").addEventListener("click", async () => {
       const idEstado = modal.querySelector(".edit-estado").value.trim();
@@ -560,14 +591,14 @@ function renderListadoExpedientes(expedientes, mountNode) {
       
       // Validación básica
       if (!idEstado) {
-        showToast("⚠️ Debes seleccionar un estado del expediente", "warning");
+        showToast("Debes seleccionar un estado del expediente", "warning");
         return;
       }
 
       const btnGuardar = modal.querySelector(".btn-guardar");
       const textoOriginal = btnGuardar.textContent;
       btnGuardar.disabled = true;
-      btnGuardar.textContent = "💾 Guardando...";
+      btnGuardar.textContent = "Guardando...";
 
       try {
           // Leer usuario real desde sesión autenticada (authManager guarda en 'trabajador_validado')
@@ -584,7 +615,7 @@ function renderListadoExpedientes(expedientes, mountNode) {
             ).trim(),
             id_estado: idEstado,
             id_estado_sistema: idEstadoSistema,
-            id_especialista: idEspecialista,
+            id_usuario_responsable: idEspecialista,
             ubicacion_texto: ubicacion,
             observaciones,
             usuario_registra: usuarioRegistra
@@ -593,7 +624,7 @@ function renderListadoExpedientes(expedientes, mountNode) {
         const resultado = await expedienteService.actualizarEnBackend(datosActualizacion);
 
         if (!resultado.success) {
-          showToast(`❌ ${resultado.message || "No se pudo actualizar"}`, "error");
+          showToast(`${resultado.message || "No se pudo actualizar"}`, "error");
           return;
         }
 
@@ -601,17 +632,17 @@ function renderListadoExpedientes(expedientes, mountNode) {
         if (index !== -1) {
           expedientes[index].id_estado = idEstado;
           expedientes[index].id_estado_sistema = idEstadoSistema;
-          expedientes[index].id_especialista = idEspecialista;
+          expedientes[index].id_usuario_responsable = idEspecialista;
           expedientes[index].ubicacion_texto = ubicacion;
           expedientes[index].observaciones = observaciones;
         }
 
-        showToast("✅ Expediente actualizado correctamente", "success");
+        showToast("Expediente actualizado correctamente", "success");
         mountNode.innerHTML = renderHTML();
         setupEventListeners();
-        modal.remove();
+        cerrarModalActivo();
       } catch (error) {
-        showToast(`❌ ${error.message}`, "error");
+        showToast(`${error.message}`, "error");
       } finally {
         btnGuardar.disabled = false;
         btnGuardar.textContent = textoOriginal;
@@ -624,12 +655,10 @@ function renderListadoExpedientes(expedientes, mountNode) {
    */
   function abrirModalDetalles(expediente) {
     const formateado = formatearExpediente(expediente);
-    const modal = document.createElement("div");
-    modal.className = "fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto";
-    modal.innerHTML = `
+    const modal = crearModal(`
       <div class="bg-white rounded-lg shadow-2xl max-w-2xl w-full my-8 p-6 space-y-4">
         <div class="flex items-center justify-between">
-          <h2 class="text-2xl font-bold text-slate-900">📋 Detalles del Expediente</h2>
+          <h2 class="text-2xl font-bold text-slate-900">Detalles del Expediente</h2>
           <button class="btn-cerrar text-slate-500 hover:text-slate-700 font-bold text-2xl">✕</button>
         </div>
 
@@ -660,7 +689,7 @@ function renderListadoExpedientes(expedientes, mountNode) {
           </div>
           <div>
             <p class="text-xs uppercase tracking-wider font-bold text-slate-600">Estado</p>
-            <p class="text-base"><span class="inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-semibold bg-${formateado.estadoColor}-100 text-${formateado.estadoColor}-700">• ${formateado.estado}</span></p>
+            <p class="text-base">${statusBadge(formateado.estado)}</p>
           </div>
           <div>
             <p class="text-xs uppercase tracking-wider font-bold text-slate-600">Incidente</p>
@@ -677,21 +706,18 @@ function renderListadoExpedientes(expedientes, mountNode) {
         </div>
 
         <div class="flex gap-2 justify-end pt-4 border-t border-slate-200">
-          <button class="btn-cerrar px-4 py-2 rounded border border-slate-300 text-slate-700 hover:bg-slate-50 font-medium">Cerrar</button>
-          <button class="btn-editar px-4 py-2 rounded bg-blue-500 text-white hover:bg-blue-600 font-medium">✏️ Editar</button>
+          <button class="btn-cerrar px-4 py-2 rounded border border-slate-300 text-slate-700 hover:bg-slate-50 font-medium inline-flex items-center gap-1">${icon("xMark", "w-3.5 h-3.5")}<span>Cerrar</span></button>
+          <button class="btn-editar btn btn-primary inline-flex items-center gap-1">${icon("edit", "w-3.5 h-3.5")}<span>Editar</span></button>
         </div>
       </div>
-    `;
+    `);
 
-    document.body.appendChild(modal);
-
-    modal.querySelector(".btn-cerrar").forEach = function() {}; // Fix for single button
     modal.querySelectorAll(".btn-cerrar").forEach(btn => {
-      btn.addEventListener("click", () => modal.remove());
+      btn.addEventListener("click", cerrarModalActivo);
     });
     
     modal.querySelector(".btn-editar").addEventListener("click", () => {
-      modal.remove();
+      cerrarModalActivo();
       abrirModalEditar(expediente);
     });
   }
@@ -748,6 +774,7 @@ function renderListadoExpedientes(expedientes, mountNode) {
       showToast("🔄 Recargando expedientes...", "info");
       paginaActual = 1;
       expedienteService.limpiarCacheBackend();
+      resetCatalogosEdicion();
       await initListadoPage({ mountNode, forceRefresh: true });
     });
 

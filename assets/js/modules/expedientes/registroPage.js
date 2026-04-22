@@ -12,6 +12,8 @@ import { formatoFechaHora, horaActual, hoyIso } from "../../utils/formatters.js"
 import { validarIncidente, validarNumeroExpediente } from "../../utils/validators.js";
 import { parsearLectora, extraerCodigoLectora } from "../../utils/lectora.js";
 import { guardarExpedienteAlBackendConConfirmacion } from "./registroExpedienteBackendIntegracion.js";
+import { icon } from "../../components/icons.js";
+import { ALERT_TONES } from "../../core/uiTokens.js";
 
 
 function filaRegistro(item = {}) {
@@ -32,11 +34,45 @@ function filaRegistro(item = {}) {
   };
 }
 
+function correlativoExpediente(item = {}) {
+  const id = String(item.id_expediente || item.id || "").trim();
+  const match = id.match(/EXP-(\d+)/i);
+  if (!match) return 0;
+  return Number(match[1]) || 0;
+}
+
+function timestampIngreso(item = {}) {
+  const fecha = String(item.fecha_ingreso || item.fechaIngreso || "").trim();
+  const hora = String(item.hora_ingreso || item.horaIngreso || "").trim();
+  const fechaHora = String(item.fecha_hora_ingreso || "").trim();
+
+  const desdeFechaHora = Date.parse(fechaHora);
+  if (!Number.isNaN(desdeFechaHora)) return desdeFechaHora;
+
+  if (fecha) {
+    const compuesto = `${fecha} ${hora || "00:00:00"}`;
+    const parsed = Date.parse(compuesto);
+    if (!Number.isNaN(parsed)) return parsed;
+  }
+
+  return 0;
+}
+
 function abrirModalListadoRegistros(registros = []) {
   const root = document.getElementById("modal-root");
   if (!root) return;
 
-  const rows = registros.map(filaRegistro);
+  const registrosOrdenados = [...registros].sort((a, b) => {
+    const correlativoA = correlativoExpediente(a);
+    const correlativoB = correlativoExpediente(b);
+    if (correlativoA !== correlativoB) {
+      return correlativoB - correlativoA;
+    }
+
+    return timestampIngreso(b) - timestampIngreso(a);
+  });
+
+  const rows = registrosOrdenados.map(filaRegistro);
   const columns = [
     { key: "id", label: "ID" },
     { key: "numero", label: "Numero Expediente" },
@@ -60,12 +96,12 @@ function abrirModalListadoRegistros(registros = []) {
             <input id="filtro-numero-expediente" class="input-base w-full" placeholder="Ej: 00012-2026-1-3101-CI-01" />
           </div>
           <div class="flex gap-2">
-            <button id="btn-filtrar-numero-expediente" class="btn btn-primary">🔎 Filtrar</button>
-            <button id="btn-limpiar-filtro-expediente" class="btn btn-secondary">🧹 Limpiar</button>
+            <button id="btn-filtrar-numero-expediente" class="btn btn-primary inline-flex items-center gap-2">${icon("busqueda", "w-4 h-4")}<span>Filtrar</span></button>
+            <button id="btn-limpiar-filtro-expediente" class="btn btn-secondary inline-flex items-center gap-2">${icon("refreshCw", "w-4 h-4")}<span>Limpiar</span></button>
           </div>
         </div>
         <p id="total-registros-modal" class="text-sm text-slate-600">Total: <strong>${rows.length}</strong> registro(s)</p>
-        <div id="tabla-registros-modal" class="overflow-auto max-h-[68vh] pr-1"></div>
+        <div id="tabla-registros-modal" class="pr-1"></div>
       </div>
     </div>
   `;
@@ -137,31 +173,59 @@ function defaults() {
 
 function parseForm(form) {
   const data = Object.fromEntries(new FormData(form).entries());
-  const juzgadoFinal = data.juzgadoManual?.trim() ? data.juzgadoManual.trim() : data.juzgado;
-  
-  // Construir número expediente completo si está en modo manual (campos separados)
+  const juzgadoFinal = data.juzgadoManual?.trim()
+    ? data.juzgadoManual.trim()
+    : data.juzgado;
+
   let numeroExpediente = data.numeroExpediente?.trim().toUpperCase() || "";
-  
-  // Si no tiene guiones (formato separado), construir desde campos individuales
-  if (numeroExpediente && !numeroExpediente.includes("-")) {
-    const numero = (data.numeroExpediente || "").padStart(5, "0");
-    const anio = data.anio || "0000";
-    const incidente = data.incidente || "0";
-    const codigoCorte = data.codigoCorte || "3101"; // Ya incluye tipo de juzgado (ej: 3101-JR)
-    const materia = data.materia || "CI";
-    const determinador = (data.numeroJuzgado || "01").padStart(2, "0");
-    
-    numeroExpediente = `${numero}-${anio}-${incidente}-${codigoCorte}-${materia}-${determinador}`;
+
+ if (numeroExpediente && !numeroExpediente.includes("-")) {
+  const numero = (data.numeroExpediente || "").padStart(5, "0");
+  const anio = data.anio || "0000";
+  const incidente = data.incidente || "0";
+  let codigoCorte = (data.codigoCorte || "3101").toString().trim().toUpperCase();
+  const materia = (data.materia || "CI").toString().trim().toUpperCase();
+  const determinador = (data.numeroJuzgado || "01").toString().padStart(2, "0");
+
+  let tipoOrgano = (data.tipoOrgano || "").toString().trim().toUpperCase();
+
+  // Si codigoCorte viene como 3101-JR, separar correctamente
+  if (codigoCorte.includes("-")) {
+    const partesCorte = codigoCorte.split("-");
+    codigoCorte = partesCorte[0] || "3101";
+    if (!tipoOrgano && partesCorte[1]) {
+      tipoOrgano = partesCorte[1];
+    }
   }
-  
-  return {
-    ...data,
-    juzgado: juzgadoFinal,
-    numeroExpediente: numeroExpediente,
-    textoRelacionado: `${numeroExpediente} ${data.materia} ${juzgadoFinal} ${data.observaciones || ""}`.toLowerCase()
-  };
+
+  if (!tipoOrgano) {
+    tipoOrgano = "JR";
+  }
+
+  numeroExpediente = `${numero}-${anio}-${incidente}-${codigoCorte}-${tipoOrgano}-${materia}-${determinador}`;
 }
 
+return {
+  ...data,
+  id_juzgado: String(data.id_juzgado || "").trim(),
+  juzgado: juzgadoFinal,
+  numeroExpediente: numeroExpediente,
+  tipoOrgano: extraerTipoOrganoDesdeCodigo(numeroExpediente) || String(data.tipoOrgano || "").trim().toUpperCase() || "JR",
+  codigoLecturaRaw: data.codigoLecturaRaw || "",
+  textoRelacionado: `${numeroExpediente} ${data.materia} ${juzgadoFinal} ${data.observaciones || ""}`.toLowerCase()
+};
+}
+function extraerTipoOrganoDesdeCodigo(numeroExpediente) {
+  const texto = String(numeroExpediente || "").trim().toUpperCase();
+  if (!texto) return "";
+
+  const partes = texto.split("-");
+  if (partes.length >= 5) {
+    return String(partes[4] || "").trim().toUpperCase();
+  }
+
+  return "";
+}
 function intentarAutoCompletar(form, numeroExpediente) {
   // Esta función fue movida al componente numeroExpedienteChip.js
   // Se mantiene aquí solo para compatibilidad temporaria
@@ -244,25 +308,26 @@ function guardarConConfirmacion(form, mountNode, modoLectora = false) {
   const btnGuardar = document.getElementById("btn-guardar") || form.querySelector("button[type='submit']");
 
   // Llamar nueva función que maneja todo, pasando el determinador validado
-  return guardarExpedienteAlBackendConConfirmacion(
-    {
-      numeroExpediente: data.numeroExpediente,
-      anio: data.anio || new Date().getFullYear(),
-      incidente: data.incidente,
-      codigoCorte: data.codigoCorte || "3101",
-      tipoOrgano: data.tipoOrgano || "1",
-      materia: data.materia,
-      id_juzgado: form.juzgado?.value || "",
-      juzgado: data.juzgado,
-      numeroJuzgado: determinador, // ✅ Pasar el determinador ya validado/corregido
-      fechaIngreso: fechaHoraRegistro.fechaIngreso,
-      horaIngreso: fechaHoraRegistro.horaIngreso,
-      observaciones: data.observaciones
-    },
-    mountNode,
-    modoLectora,
-    btnGuardar
-  );
+return guardarExpedienteAlBackendConConfirmacion(
+  {
+    numeroExpediente: data.numeroExpediente,
+    anio: data.anio || new Date().getFullYear(),
+    incidente: data.incidente,
+    codigoCorte: data.codigoCorte || "3101",
+    tipoOrgano: data.tipoOrgano || extraerTipoOrganoDesdeCodigo(data.numeroExpediente) || "JR",
+    materia: data.materia,
+    id_juzgado: data.id_juzgado || "",
+    juzgado: data.juzgado,
+    numeroJuzgado: determinador,
+    fechaIngreso: fechaHoraRegistro.fechaIngreso,
+    horaIngreso: fechaHoraRegistro.horaIngreso,
+    observaciones: data.observaciones,
+    codigoLecturaRaw: data.codigoLecturaRaw || ""
+  },
+  mountNode,
+  modoLectora,
+  btnGuardar
+);
 }
 
 export function initRegistroPage({ mountNode }) {
@@ -277,9 +342,9 @@ export function initRegistroPage({ mountNode }) {
           <p class="text-sm text-slate-500">Completa el formulario para registrar un nuevo expediente.</p>
         </div>
         <div class="flex gap-2">
-          <button id="btn-listar-registros" class="btn btn-secondary" title="Ver todos los registros">👁️ Listar</button>
-          <button id="btn-modo-manual" class="btn btn-secondary" title="Entrada manual con teclado">🖱️ Manual</button>
-          <button id="btn-modo-lectora" class="btn btn-secondary" title="Presiona Enter para completar con lectora">📱 Lectora</button>
+          <button id="btn-listar-registros" class="btn btn-secondary inline-flex items-center gap-2" title="Ver todos los registros">${icon("list", "w-4 h-4")}<span>Listar</span></button>
+          <button id="btn-modo-manual" class="btn btn-secondary inline-flex items-center gap-2" title="Entrada manual con teclado">${icon("edit", "w-4 h-4")}<span>Manual</span></button>
+          <button id="btn-modo-lectora" class="btn btn-secondary inline-flex items-center gap-2" title="Presiona Enter para completar con lectora">${icon("shieldCheck", "w-4 h-4")}<span>Lectora</span></button>
         </div>
       </div>
       
@@ -294,16 +359,25 @@ export function initRegistroPage({ mountNode }) {
   document.getElementById("btn-listar-registros")?.addEventListener("click", async () => {
     showToast("Cargando registros...", "info");
 
+    const ordenarRegistros = (data = []) => [...data].sort((a, b) => {
+      const correlativoA = correlativoExpediente(a);
+      const correlativoB = correlativoExpediente(b);
+      if (correlativoA !== correlativoB) {
+        return correlativoB - correlativoA;
+      }
+      return timestampIngreso(b) - timestampIngreso(a);
+    });
+
     try {
       const resultado = await expedienteService.listarDelBackend({ forceRefresh: true });
       const registros = resultado?.success && Array.isArray(resultado.data)
         ? resultado.data
         : expedienteService.listar();
 
-      abrirModalListadoRegistros(registros);
+      abrirModalListadoRegistros(ordenarRegistros(registros));
     } catch (error) {
       console.warn("⚠️ Error cargando registros para modal:", error);
-      abrirModalListadoRegistros(expedienteService.listar());
+      abrirModalListadoRegistros(ordenarRegistros(expedienteService.listar()));
     }
   });
 
@@ -312,7 +386,7 @@ export function initRegistroPage({ mountNode }) {
     const formContainer = document.getElementById("form-container");
     formContainer.innerHTML = renderExpedienteForm(defaults());
     setupFormManual();
-    showToast("🖱️ Modo manual activado", "info");
+    showToast("Modo manual activado", "info");
   });
 
   document.getElementById("btn-modo-lectora")?.addEventListener("click", () => {
@@ -322,31 +396,31 @@ export function initRegistroPage({ mountNode }) {
     setupFormLectora();
     
     openModal({
-      title: "📱 Modo Lectora - Registro de Expedientes",
+      title: "Modo Lectora - Registro de Expedientes",
       content: `
         <div class="space-y-4">
           <p class="text-base font-medium text-slate-700">Usando escáner de códigos de barras - <strong>Solo ENTER ENTER</strong></p>
           
-          <div class="bg-sky-50 border border-sky-300 rounded-lg p-4 space-y-2">
-            <p class="text-sm text-sky-900 font-semibold">⚡ Flujo rápido (ENTER ENTER):</p>
-            <ol class="text-sm text-sky-800 space-y-2 ml-4 list-decimal">
+          <div class="${ALERT_TONES.info.surface} border ${ALERT_TONES.info.border} rounded-lg p-4 space-y-2">
+            <p class="text-sm ${ALERT_TONES.info.text} font-semibold inline-flex items-center gap-2">${icon("refreshCw", "w-4 h-4")}<span>Flujo rápido (ENTER ENTER):</span></p>
+            <ol class="text-sm ${ALERT_TONES.info.text} space-y-2 ml-4 list-decimal">
               <li><strong>ENTER 1:</strong> Escanea el código (se procesará automáticamente)</li>
               <li><strong>ENTER 2:</strong> Presiona ENTER nuevamente para registrar</li>
               <li>El expediente se creará en el backend sin confirmación adicional</li>
             </ol>
           </div>
           
-          <div class="bg-blue-50 border border-blue-300 rounded-lg p-3 space-y-2">
-            <p class="text-xs text-blue-700 font-semibold">✏️ Si el escáner no captura bien el código:</p>
-            <ul class="text-xs text-blue-700 ml-4 list-disc space-y-1">
+          <div class="${ALERT_TONES.info.surface} border ${ALERT_TONES.info.border} rounded-lg p-3 space-y-2">
+            <p class="text-xs ${ALERT_TONES.info.text} font-semibold">Si el escáner no captura bien el código:</p>
+            <ul class="text-xs ${ALERT_TONES.info.text} ml-4 list-disc space-y-1">
               <li>Puedes <strong>editar manualmente</strong> el código en el campo</li>
               <li>Debe tener <strong>entre 20-23 dígitos numéricos</strong></li>
               <li>Se aceptan códigos con problemas menores (se autocorrigen)</li>
             </ul>
           </div>
           
-          <div class="bg-amber-50 border border-amber-300 rounded-lg p-3">
-            <p class="text-xs text-amber-700 font-semibold">💡 Nota: Solo se aceptan dígitos (0-9). Caracteres especiales se ignoran automáticamente</p>
+          <div class="${ALERT_TONES.warning.surface} border ${ALERT_TONES.warning.border} rounded-lg p-3">
+            <p class="text-xs ${ALERT_TONES.warning.text} font-semibold">Nota: Solo se aceptan dígitos (0-9). Caracteres especiales se ignoran automáticamente</p>
           </div>
         </div>
       `,
@@ -354,7 +428,7 @@ export function initRegistroPage({ mountNode }) {
       onConfirm: (close) => {
         close();
         document.getElementById("numero-expediente-lectora")?.focus();
-        showToast("⚡ Escanea + ENTER (dos veces)", "success");
+        showToast("Escanea + ENTER (dos veces)", "success");
       }
     });
   });
@@ -382,6 +456,17 @@ export function initRegistroPage({ mountNode }) {
     const checkboxIncidente = document.getElementById("checkbox-incidente");
     const inputIncidente = document.getElementById("input-incidente");
     const inputDeterminador = document.getElementById("input-determinador");
+
+    // ✅ NUEVO: Sincronizar select de juzgado con hidden nombre
+    const selectJuzgado = document.getElementById("select-juzgado");
+    const hiddenJuzgadoNombre = document.getElementById("hidden-juzgado-nombre");
+
+    if (selectJuzgado && hiddenJuzgadoNombre) {
+      selectJuzgado.addEventListener("change", () => {
+        const opcionSeleccionada = selectJuzgado.selectedOptions[0];
+        hiddenJuzgadoNombre.value = opcionSeleccionada?.dataset?.nombre || "";
+      });
+    }
 
     // Lógica del checkbox de incidente
     if (checkboxIncidente && inputIncidente) {
@@ -414,48 +499,37 @@ export function initRegistroPage({ mountNode }) {
 
     // Autocompletar número expediente con padding (ej: 50 -> 00050)
     if (numeroInput) {
-      // Permitir formato completo: 00469-2021-0-3101-JR-CI-02
       numeroInput.addEventListener("input", (e) => {
         let valor = e.target.value.toUpperCase();
         
-        // Si el usuario solo está escribiendo números, aplicar padding automático
         if (/^\d+$/.test(valor) && valor.length <= 5) {
           e.target.value = valor.slice(0, 5);
         } else if (/^\d+$/.test(valor) && valor.length > 5) {
-          // Si tiene más de 5 dígitos seguidos, probablemente sea error
           e.target.value = valor.slice(0, 5);
         } else {
-          // Permitir formato completo con guiones y letras
           e.target.value = valor;
         }
       });
 
-      // Al perder foco, aplicar padding si es solo números
       numeroInput.addEventListener("blur", (e) => {
         let valor = e.target.value.trim();
         if (valor && /^\d+$/.test(valor)) {
-          // Solo números, aplicar padding a 5 dígitos
           e.target.value = valor.padStart(5, "0");
           validarNumeroRegistro();
         }
       });
 
-      // ⚡ NUEVO: Permitir ENTER en el número para:
-      // 1ra vez: validar
-      // 2da vez: enviar (si ya está validado)
       numeroInput.addEventListener("keydown", (e) => {
         if (e.key === "Enter") {
           e.preventDefault();
           
           const chip = form.querySelector("#numero-expediente-chip");
-          const esValido = chip && chip.textContent.includes("✅");
+          const esValido = chip && chip.textContent.includes("Válido");
           
           if (esValido && numeroInput.dataset.enterPresionado === "once") {
-            // Segunda vez presionando ENTER: enviar directamente
             form.dispatchEvent(new Event("submit"));
             numeroInput.dataset.enterPresionado = "";
           } else if (!esValido) {
-            // Primera vez: validar/autocompletar
             let valor = numeroInput.value.trim();
             if (valor && /^\d+$/.test(valor)) {
               numeroInput.value = valor.padStart(5, "0");
@@ -463,7 +537,6 @@ export function initRegistroPage({ mountNode }) {
               numeroInput.dataset.enterPresionado = "once";
             }
           } else if (esValido) {
-            // Ya está válido, marcar que ENTER fue presionado
             numeroInput.dataset.enterPresionado = "once";
           }
         }
@@ -479,7 +552,6 @@ export function initRegistroPage({ mountNode }) {
         return;
       }
 
-      // Construir número expediente completo desde campos individuales
       const anio = form.anio?.value || "0000";
       const incidente = form.incidente?.value || "0";
       const codigoCorte = form.codigoCorte?.value || "3101-JR";
@@ -502,16 +574,16 @@ export function initRegistroPage({ mountNode }) {
 
       const estados = {
         pendiente: "Pendiente de validar",
-        valido: `✅ ${numeroCompleto || "Válido"}`,
-        invalido: `❌ ${numeroCompleto || "Inválido"}`
+        valido: `${numeroCompleto || "Válido"}`,
+        invalido: `${numeroCompleto || "Inválido"}`
       };
       const texto = estados[estado] || "Pendiente";
       badge.textContent = texto;
-      badge.title = numeroCompleto; // Para ver en hover
+      badge.title = numeroCompleto;
       badge.className = `badge ${
-        estado === "valido" ? "bg-green-100 text-green-800" : 
-        estado === "invalido" ? "bg-red-100 text-red-800" : 
-        "bg-slate-100 text-slate-700"
+        estado === "valido" ? `${ALERT_TONES.success.surface} ${ALERT_TONES.success.text}` : 
+        estado === "invalido" ? `${ALERT_TONES.danger.surface} ${ALERT_TONES.danger.text}` : 
+        `${ALERT_TONES.neutral.surface} ${ALERT_TONES.neutral.text}`
       }`;
     }
 
@@ -534,18 +606,19 @@ export function initRegistroPage({ mountNode }) {
         inputIncidente.setAttribute("readonly", "readonly");
       }
       if (inputDeterminador) inputDeterminador.value = "01";
+      // ✅ NUEVO: Limpiar también el hidden del nombre del juzgado
+      if (hiddenJuzgadoNombre) hiddenJuzgadoNombre.value = "";
       actualizarChipManual("pendiente");
       actualizarEstadoVisual(form);
       showToast("Formulario limpio", "info");
     });
 
-    // Permitir ENTER para enviar directamente si el chip es válido
     const observacionesInput = form.querySelector("textarea[name='observaciones']");
     if (observacionesInput) {
       observacionesInput.addEventListener("keydown", (e) => {
         if (e.key === "Enter" && !e.shiftKey) {
           const chip = form.querySelector("#numero-expediente-chip");
-          if (chip && chip.textContent.includes("✅")) {
+          if (chip && chip.textContent.includes("Válido")) {
             e.preventDefault();
             form.dispatchEvent(new Event("submit"));
           }
@@ -576,16 +649,16 @@ export function initRegistroPage({ mountNode }) {
     function actualizarChipLectora(estado, mensaje = "") {
       let html = "";
       if (estado === "pendiente") {
-        html = `<div class="px-4 py-3 rounded-lg border border-slate-300 bg-slate-50 text-sm text-slate-600">
-          ⏳ Esperando escaneo...
+        html = `<div class="px-4 py-3 rounded-lg border ${ALERT_TONES.neutral.border} ${ALERT_TONES.neutral.surface} text-sm ${ALERT_TONES.neutral.text}">
+          ${mensaje || "Esperando escaneo..."}
         </div>`;
       } else if (estado === "valido") {
-        html = `<div class="px-4 py-3 rounded-lg border-2 border-green-400 bg-green-50 text-sm font-semibold text-green-700">
-          ✅ Código válido - Listo para guardar
+        html = `<div class="px-4 py-3 rounded-lg border-2 ${ALERT_TONES.success.border} ${ALERT_TONES.success.surface} text-sm font-semibold ${ALERT_TONES.success.text}">
+          Código válido - Listo para guardar
         </div>`;
       } else if (estado === "invalido") {
-        html = `<div class="px-4 py-3 rounded-lg border-2 border-red-400 bg-red-50 text-sm font-semibold text-red-700">
-          ❌ Formato inválido (Debe tener 20-23 dígitos)
+        html = `<div class="px-4 py-3 rounded-lg border-2 ${ALERT_TONES.danger.border} ${ALERT_TONES.danger.surface} text-sm font-semibold ${ALERT_TONES.danger.text}">
+          Formato inválido (Debe tener 20-23 dígitos)
         </div>`;
       }
       chipBox.innerHTML = html;
@@ -600,7 +673,7 @@ export function initRegistroPage({ mountNode }) {
         actualizarChipLectora("invalido");
         resumenBox.classList.add("hidden");
         btnGuardar.disabled = true;
-        showToast("❌ Debe ingresar solo dígitos numéricos", "error");
+        showToast("Debe ingresar solo dígitos numéricos", "error");
         return;
       }
       
@@ -610,7 +683,7 @@ export function initRegistroPage({ mountNode }) {
         resumenBox.classList.add("hidden");
         btnGuardar.disabled = true;
         const longitud = codigoExtraido.length;
-        showToast(`❌ Código tiene ${longitud} dígitos. Debe tener 20-23 dígitos`, "error");
+        showToast(`Código tiene ${longitud} dígitos. Debe tener 20-23 dígitos`, "error");
         return;
       }
       
@@ -625,35 +698,43 @@ export function initRegistroPage({ mountNode }) {
         resumenBox.classList.add("hidden");
         btnGuardar.disabled = true;
         console.error("❌ Error al parsear código:", { codigo, longitud: codigoFinal.length });
-        showToast("❌ Formato de código de barras no reconocido. Verifica el código ingresado.", "error");
+        showToast("Formato de código de barras no reconocido. Verifica el código ingresado.", "error");
         return;
       }
+// ✅ Validar duplicado comparando código completo exacto
+const expedientesBackend = expedienteService.listarDelBackendSync();
+const codigoCompletoParseado = parsed.codigoLecturaRaw || parsed.numeroExpediente || "";
 
-      // ✅ VALIDAR DUPLICADO: Usar datos del BACKEND (fuente de verdad)
-      const expedientesBackend = expedienteService.listarDelBackendSync();
-      const yaExisteEnBackend = expedientesBackend.some(exp => 
-        exp.numeroExpediente === parsed.numeroExpediente
-      );
+const yaExisteEnBackend = expedientesBackend.some(exp =>
+  // Comparar contra código de barras crudo (registros nuevos)
+  String(exp.codigo_expediente_completo || "").trim() === codigoFinal.trim() ||
+  // Comparar contra número legible (registros antiguos)
+  String(exp.codigo_expediente_completo || "").trim() === parsed.numeroExpediente.trim() ||
+  String(exp.numero_expediente || "").trim() === parsed.numeroExpediente.trim()
+);
 
-      if (yaExisteEnBackend) {
-        actualizarChipLectora("invalido");
-        resumenBox.classList.add("hidden");
-        btnGuardar.disabled = true;
-        showToast(`❌ DUPLICADO: El expediente ${parsed.numeroExpediente} ya está registrado en el servidor`, "error");
-        return;
-      }
+if (yaExisteEnBackend) {
+  actualizarChipLectora("invalido");
+  resumenBox.classList.add("hidden");
+  btnGuardar.disabled = true;
+  showToast(
+    `❌ DUPLICADO: El expediente ${codigoCompletoParseado} ya está registrado en el servidor`,
+    "error"
+  );
+  return;
+}
 
       // Mapeo automático: determinador → juzgado específico + tipo de juzgado
       const mapDeterminador = {
         "01": ["1er", "Primer"],
         "02": ["2do", "Segundo"],
-        "03": ["3er", "Tercer"],
-        "04": ["4", "Cuarto"],
-        "05": ["5", "Quinto"],
-        "06": ["6", "Sexto"],
-        "07": ["7", "Séptimo"],
-        "08": ["8", "Octavo"],
-        "09": ["9", "Noveno"]
+        "03": ["3er", "Primer"],
+        "04": ["4", "Segundo"],
+        "05": ["5", "Primer"],
+        "06": ["6", "Segundo"],
+        "07": ["7", "Primer"],
+        "08": ["8", "Segundoo"],
+        "09": ["9", "Primer"]
       };
       
       // Determinar tipo de especialidad basada en el tipo de juzgado del code
@@ -682,23 +763,49 @@ export function initRegistroPage({ mountNode }) {
         );
       }
       
-      const juzgadoNombre = juzgadoDetectado ? juzgadoDetectado.nombre : `Juzgado ${especialidad} - Det. ${parsed.numeroJuzgado} (${parsed.tipoJuzgado})`;
+   const juzgadoId = juzgadoDetectado
+  ? String(juzgadoDetectado.id_juzgado || juzgadoDetectado.id || "").trim()
+  : "";
 
-      // Actualizar formulario con datos parseados
-      form.numeroExpediente.value = parsed.numeroExpediente;
-      document.getElementById("input-anio").value = parsed.anio;
-      document.getElementById("input-incidente").value = parsed.incidente;
-      document.getElementById("input-codigo-corte").value = parsed.codigoCorte;
-      document.getElementById("input-materia").value = parsed.materia;
-      document.getElementById("input-codigo-lectura-raw").value = parsed.codigoLecturaRaw || "";
-      
-      // Guardar juzgado específico detectado
-      document.getElementById("input-juzgado").value = juzgadoNombre;
-      form.juzgado.value = juzgadoNombre; // También en el formulario
-      
-      // Guardar determinador (numeroJuzgado) - importante para la validación
-      form.numeroJuzgado.value = parsed.numeroJuzgado || "01";
-      form.numeroJuzgado.style.display = "none"; // Ocultar del formulario
+const juzgadoNombre = juzgadoDetectado
+  ? String(juzgadoDetectado.nombre_juzgado || juzgadoDetectado.nombre || "").trim()
+  : `Juzgado ${especialidad} - Det. ${parsed.numeroJuzgado} (${parsed.tipoJuzgado})`;
+
+// Actualizar formulario con datos parseados
+form.numeroExpediente.value = parsed.numeroExpediente;
+document.getElementById("input-anio").value = parsed.anio;
+document.getElementById("input-incidente").value = parsed.incidente;
+document.getElementById("input-codigo-corte").value = parsed.codigoCorte;
+document.getElementById("input-materia").value = parsed.materia;
+document.getElementById("input-codigo-lectura-raw").value = parsed.codigoLecturaRaw || "";
+
+// Guardar juzgado detectado
+document.getElementById("input-juzgado").value = juzgadoNombre;
+form.juzgado.value = juzgadoNombre;
+
+// Guardar también el ID real del juzgado en hidden
+let hiddenIdJuzgado = form.querySelector("input[name='id_juzgado']");
+if (!hiddenIdJuzgado) {
+  hiddenIdJuzgado = document.createElement("input");
+  hiddenIdJuzgado.type = "hidden";
+  hiddenIdJuzgado.name = "id_juzgado";
+  form.appendChild(hiddenIdJuzgado);
+}
+hiddenIdJuzgado.value = juzgadoId;
+
+// Guardar tipo de órgano en hidden
+let hiddenTipoOrgano = form.querySelector("input[name='tipoOrgano']");
+if (!hiddenTipoOrgano) {
+  hiddenTipoOrgano = document.createElement("input");
+  hiddenTipoOrgano.type = "hidden";
+  hiddenTipoOrgano.name = "tipoOrgano";
+  form.appendChild(hiddenTipoOrgano);
+}
+hiddenTipoOrgano.value = String(parsed.tipoJuzgado || "").trim().toUpperCase();
+
+// Guardar determinador
+form.numeroJuzgado.value = parsed.numeroJuzgado || "01";
+form.numeroJuzgado.style.display = "none";
       
       // Auto-llenar ubicación y estado
       if (!form.ubicacionActual.value) form.ubicacionActual.value = "Estante";
@@ -715,7 +822,7 @@ export function initRegistroPage({ mountNode }) {
 
       // Mostrar mensaje incluyendo tipo de registro (principal/cautelar) detectado por lectora
       showToast(
-        `✅ ${parsed.tipoRegistro}: ${parsed.incidente} · ${juzgadoNombre} (det: ${parsed.numeroJuzgado})`,
+        `${parsed.tipoRegistro}: ${parsed.incidente} · ${juzgadoNombre} (det: ${parsed.numeroJuzgado})`,
         "success"
       );
 
@@ -742,7 +849,7 @@ export function initRegistroPage({ mountNode }) {
       } else if (longitud >= 20 && longitud <= 23) {
         actualizarChipLectora("pendiente", `✓ ${longitud} dígitos - Presiona ENTER`);
       } else if (longitud > 23) {
-        actualizarChipLectora("pendiente", `⚠️ ${longitud} dígitos (máximo 23)`);
+        actualizarChipLectora("pendiente", `${longitud} dígitos (máximo 23)`);
       } else {
         actualizarChipLectora("pendiente", `${longitud}/20 dígitos... sigue escribiendo`);
       }
@@ -814,9 +921,14 @@ export function initRegistroPage({ mountNode }) {
             <div>
               <label class="text-xs font-bold text-slate-700 uppercase block mb-1">Juzgado Específico</label>
               <select id="modal-juzgado" class="w-full border-2 border-slate-300 rounded px-3 py-2 text-sm focus:border-blue-500 focus:outline-none">
-                <option value="">-- Seleccionar --</option>
-                ${juzgados.map(j => `<option value="${j.nombre}" ${j.nombre === juzgadoActual ? 'selected' : ''}>${j.nombre}</option>`).join('')}
-              </select>
+  <option value="">-- Seleccionar --</option>
+  ${juzgados.map(j => {
+    const id = String(j.id_juzgado || j.id || "").trim();
+    const nombre = String(j.nombre_juzgado || j.nombre || "").trim();
+    const selected = nombre === juzgadoActual ? "selected" : "";
+    return `<option value="${id}" data-nombre="${nombre}" ${selected}>${nombre}</option>`;
+  }).join('')}
+</select>
             </div>
             
             <!-- Selector de Paquete -->
@@ -848,12 +960,14 @@ export function initRegistroPage({ mountNode }) {
         confirmText: "Guardar cambios",
         onConfirm: (close) => {
           const nuevoNumero = document.getElementById("modal-numero-expediente")?.value || numeroExpediente;
-          const nuevoJuzgado = document.getElementById("modal-juzgado")?.value || juzgadoActual;
+          const selectJuzgado = document.getElementById("modal-juzgado");
+const nuevoJuzgadoId = selectJuzgado?.value || "";
+const nuevoJuzgadoTexto = selectJuzgado?.selectedOptions?.[0]?.dataset?.nombre || juzgadoActual;
           const nuevoPaquete = document.getElementById("modal-paquete")?.value || "";
           const nuevaUbicacion = document.getElementById("modal-ubicacion")?.value || "Estante";
           const nuevoEstado = document.getElementById("modal-estado")?.value || "Ingresado";
           
-          if (!nuevoJuzgado) {
+          if (!nuevoJuzgadoTexto) {
             showToast("⚠️ Debes seleccionar un juzgado", "warning");
             return;
           }
@@ -865,15 +979,24 @@ export function initRegistroPage({ mountNode }) {
           
           // Guardar cambios en el formulario
           form.numeroExpediente.value = nuevoNumero;
-          form.juzgado.value = nuevoJuzgado;
-          document.getElementById("input-juzgado").value = nuevoJuzgado;
+          form.juzgado.value = nuevoJuzgadoTexto;
+document.getElementById("input-juzgado").value = nuevoJuzgadoTexto;
+let hiddenIdJuzgado = form.querySelector("input[name='id_juzgado']");
+if (!hiddenIdJuzgado) {
+  hiddenIdJuzgado = document.createElement("input");
+  hiddenIdJuzgado.type = "hidden";
+  hiddenIdJuzgado.name = "id_juzgado";
+  form.appendChild(hiddenIdJuzgado);
+}
+hiddenIdJuzgado.value = nuevoJuzgadoId;
+
           form.paqueteId.value = nuevoPaquete;
           form.ubicacionActual.value = nuevaUbicacion;
           form.estado.value = nuevoEstado;
           
           // Actualizar resumen
           document.getElementById("resumen-expediente-completo").textContent = nuevoNumero;
-          document.getElementById("resumen-juzgado").textContent = nuevoJuzgado;
+          document.getElementById("resumen-juzgado").textContent = nuevoJuzgadoTexto;
           document.getElementById("resumen-paquete").textContent = nuevoPaquete || "---";
           document.getElementById("resumen-ubicacion").textContent = nuevaUbicacion;
           document.getElementById("resumen-estado").textContent = nuevoEstado;

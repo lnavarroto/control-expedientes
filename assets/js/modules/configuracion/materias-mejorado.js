@@ -6,18 +6,19 @@ import { materiaService } from "../../services/materiaService.js";
 import { renderTable } from "../../components/table.js";
 import { showToast } from "../../components/toast.js";
 import { openModal } from "../../components/modal.js";
+import { icon } from "../../components/icons.js";
 
 function renderMateriasTable(materias) {
   const rows = materias.map(m => ({
-    codigo: `<span class="badge bg-emerald-100 text-emerald-800 font-mono">${m.codigo}</span>`,
+    codigo: `<span class="badge bg-slate-100 text-slate-800 font-mono">${m.codigo}</span>`,
     nombre: `<span class="font-medium">${m.nombre}</span>`,
     abreviatura: m.abreviatura,
     descripcion: m.descripcion || "-",
-    estado: `<span class="badge ${m.activo ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-800'}">${m.activo ? '✓ Activo' : '✗ Inactivo'}</span>`,
+    estado: `<span class="badge ${m.activo ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-800'}">${m.activo ? 'Activo' : 'Inactivo'}</span>`,
     acciones: `
       <div class="flex gap-2">
-        <button class="px-3 py-1 text-xs rounded border border-blue-300 text-blue-700 hover:bg-blue-50 transition" data-action="editar" data-id="${m.id}">Editar</button>
-        <button class="px-3 py-1 text-xs rounded border border-orange-300 text-orange-700 hover:bg-orange-50 transition" data-action="toggle" data-id="${m.id}">${m.activo ? 'Desactivar' : 'Activar'}</button>
+        <button class="px-3 py-1 text-xs rounded border border-blue-300 text-blue-700 hover:bg-blue-50 transition inline-flex items-center gap-1" data-action="editar" data-id="${m.id}">${icon("edit", "w-3 h-3")}<span>Editar</span></button>
+        <button class="px-3 py-1 text-xs rounded border border-orange-300 text-orange-700 hover:bg-orange-50 transition inline-flex items-center gap-1" data-action="toggle" data-id="${m.id}">${m.activo ? icon("deactivate", "w-3 h-3") : icon("activate", "w-3 h-3")}<span>${m.activo ? 'Desactivar' : 'Activar'}</span></button>
       </div>
     `
   }));
