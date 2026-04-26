@@ -85,7 +85,7 @@ export function construirPayloadExpediente(formData, usuario) {
     id_juzgado: formData.id_juzgado ? formData.id_juzgado.toString() : "",
     juzgado_texto: formData.juzgado_texto || "",
     observaciones: (formData.observaciones || "").toString().trim(),
-    origen_registro: "SISTEMA",
+    origen_registro: "MANUAL",
     registrado_por: `${usuario.nombres} ${usuario.apellidos}`,
     dni_usuario: usuario.dni,
     nombres_usuario: usuario.nombres,

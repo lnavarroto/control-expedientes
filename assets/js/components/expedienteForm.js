@@ -65,7 +65,7 @@ export function renderExpedienteForm(expediente = {}) {
           <div class="col-span-1 md:col-span-2">
             <label class="text-xs font-bold text-blue-800 uppercase tracking-wide">Número</label>
             <input class="input-base w-full text-center font-mono font-bold text-lg border-2 border-blue-400 focus:border-blue-600 focus:ring-2 focus:ring-blue-200 bg-white" 
-              name="numeroExpediente" placeholder="00012" value="${expediente.numeroExpediente ? expediente.numeroExpediente.split('-')[0] : ''}" />
+              name="numeroExpediente" data-only-numbers="true" inputmode="numeric" autocomplete="off" placeholder="00012" value="${expediente.numeroExpediente ? expediente.numeroExpediente.split('-')[0] : ''}" />
           </div>
           <div class="hidden md:flex md:col-span-1 justify-center text-blue-500 font-bold">—</div>
           
@@ -73,7 +73,7 @@ export function renderExpedienteForm(expediente = {}) {
           <div class="col-span-1 md:col-span-1">
             <label class="text-xs font-bold text-blue-800 uppercase tracking-wide">Año</label>
             <input class="input-base w-full text-center font-mono font-bold text-lg border-2 border-blue-400 focus:border-blue-600 focus:ring-2 focus:ring-blue-200 bg-white" 
-              name="anio" type="number" value="${expediente.anio || ''}" />
+              name="anio" type="number" data-only-numbers="true" inputmode="numeric" value="${expediente.anio || ''}" />
           </div>
           <div class="hidden md:flex md:col-span-1 justify-center text-blue-500 font-bold">—</div>
           
@@ -84,7 +84,7 @@ export function renderExpedienteForm(expediente = {}) {
               <input type="checkbox" id="checkbox-incidente" class="w-4 h-4 cursor-pointer border-blue-400 rounded" />
             </div>
             <input class="input-base w-full text-center font-mono font-bold text-lg border-2 border-blue-400 focus:border-blue-600 focus:ring-2 focus:ring-blue-200 bg-white" 
-              name="incidente" type="number" min="0" max="999" value="${incidenteDefault}" readonly id="input-incidente" />
+              name="incidente" type="number" data-only-numbers="true" inputmode="numeric" min="0" max="999" value="${incidenteDefault}" readonly id="input-incidente" />
           </div>
           <div class="hidden md:flex md:col-span-1 justify-center text-blue-500 font-bold">—</div>
           
@@ -113,7 +113,7 @@ export function renderExpedienteForm(expediente = {}) {
           <div class="col-span-1 md:col-span-1">
             <label class="text-xs font-bold text-blue-800 uppercase tracking-wide">Det</label>
             <input class="input-base w-full text-center font-mono font-bold text-lg border-2 border-blue-400 focus:border-blue-600 focus:ring-2 focus:ring-blue-200 bg-white" 
-              name="numeroJuzgado" type="text" maxlength="2" value="${determinadorDefault}" id="input-determinador" placeholder="01" />
+              name="numeroJuzgado" type="text" data-only-numbers="true" inputmode="numeric" maxlength="2" value="${determinadorDefault}" id="input-determinador" placeholder="01" />
           </div>
         </div>
         
@@ -157,7 +157,10 @@ export function renderExpedienteForm(expediente = {}) {
           </div>
           <div>
             <label class="text-xs font-bold text-green-800 uppercase">Estado</label>
-            <select class="select-base w-full border-2 border-green-300 focus:border-green-500 focus:ring-2 focus:ring-green-200" id="estado-expediente" name="estado">${optionList(ESTADOS_EXPEDIENTE, estado)}</select>
+            <div class="input-base w-full bg-gray-100 border-2 border-green-200 text-center font-bold text-green-700 py-2 rounded-lg" style="min-height:2.5rem;">
+              ${estado}
+            </div>
+            <input type="hidden" name="estado" value="${estado}" />
           </div>
           <div class="flex flex-col justify-end">
             <p class="text-xs font-bold text-green-800 uppercase mb-1">Vista previa</p>
@@ -214,6 +217,7 @@ export function renderFormularioLectora(expediente = {}) {
             id="numero-expediente-lectora" 
             class="input-base text-center text-lg font-mono tracking-wider" 
             name="numeroExpediente" 
+            data-only-numbers="true"
             placeholder="Escanea aquí..."
             maxlength="23"
             inputmode="numeric"
@@ -261,7 +265,7 @@ export function renderFormularioLectora(expediente = {}) {
             </div>
             <div>
               <p class="text-xs text-slate-500 font-semibold">Estado</p>
-              <p id="resumen-estado" class="font-semibold text-slate-900">-</p>
+              <div id="resumen-estado" class="font-semibold text-slate-900">${estado}</div>
             </div>
           </div>
         </div>

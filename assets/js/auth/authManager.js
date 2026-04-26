@@ -1,12 +1,13 @@
-/**
- * Gestor de autenticación del sistema
- * Valida trabajadores contra BD de Google Sheets
- */
+
+const TIEMPO_INACTIVIDAD_MS = 30 * 60 * 1000; // 30 minutos
+const STORAGE_KEY = "trabajador_validado";
 
 export class AuthManager {
   constructor(apiUrl) {
     this.apiUrl = apiUrl;
     this.trabajador = null;
+    this._intervalVerificacion = null;
+    this._handlerActividad = null;
     this.loadFromStorage();
   }
 
@@ -15,7 +16,7 @@ export class AuthManager {
    */
   loadFromStorage() {
     try {
-      const stored = localStorage.getItem("trabajador_validado");
+      const stored = localStorage.getItem(STORAGE_KEY);
       if (stored) {
         this.trabajador = JSON.parse(stored);
       }
@@ -68,7 +69,7 @@ export class AuthManager {
 
       // Procesar respuesta
       let usuario = null;
-      
+
       if (responseData.success && responseData.data) {
         usuario = responseData.data;
       } else if (responseData.data) {
@@ -103,7 +104,7 @@ export class AuthManager {
         };
       }
 
-      // Trabajador válido - guardar en memoria y localStorage
+      // Trabajador válido - guardar en memoria y localStorage (con timestamp de actividad)
       this.trabajador = {
         id_usuario: usuario.id_usuario,
         dni: usuario.dni,
@@ -116,11 +117,12 @@ export class AuthManager {
         id_rol: usuario.id_rol,
         activo: usuario.activo,
         acceso_sistema: usuario.acceso_sistema,
-        validado_en: new Date().toISOString()
+        validado_en: new Date().toISOString(),
+        ultima_actividad: Date.now()         // ← NUEVO: timestamp para control de inactividad
       };
 
       console.log("✅ Trabajador validado:", this.trabajador);
-      localStorage.setItem("trabajador_validado", JSON.stringify(this.trabajador));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(this.trabajador));
 
       return {
         success: true,
@@ -138,6 +140,111 @@ export class AuthManager {
     }
   }
 
+  // ===========================================================
+  // CONTROL DE INACTIVIDAD
+  // ===========================================================
+
+  /**
+   * Renueva el timestamp de última actividad en localStorage y en memoria.
+   * Se llama automáticamente en cada interacción del usuario.
+   */
+  _renovarActividad() {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (!stored) return;
+    try {
+      const sesion = JSON.parse(stored);
+      sesion.ultima_actividad = Date.now();
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(sesion));
+      if (this.trabajador) {
+        this.trabajador.ultima_actividad = sesion.ultima_actividad;
+      }
+    } catch (e) {
+      // silencioso
+    }
+  }
+
+  /**
+   * Verifica si la sesión expiró por inactividad.
+   * @returns {boolean} true = sesión vigente, false = expirada
+   */
+  _sesionVigente() {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (!stored) return false;
+    try {
+      const sesion = JSON.parse(stored);
+      // Si el dato no tiene ultima_actividad (sesión antigua al deploy), 
+      // la renovamos para no cerrar sesiones válidas inesperadamente
+      if (!sesion.ultima_actividad) {
+        sesion.ultima_actividad = Date.now();
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(sesion));
+        return true;
+      }
+      return (Date.now() - sesion.ultima_actividad) < TIEMPO_INACTIVIDAD_MS;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /**
+   * Inicia el vigilante de inactividad.
+   * Llamar desde app.js justo después de confirmar autenticación.
+   * @param {Function} onExpiracion - Callback opcional cuando la sesión expira
+   */
+  iniciarVigilanteInactividad(onExpiracion) {
+    // Evitar duplicados si se llama más de una vez
+    this.detenerVigilanteInactividad();
+
+    // Handler de actividad del usuario (guardado para poder removerlo luego)
+    this._handlerActividad = () => this._renovarActividad();
+
+    const eventos = ["mousemove", "keydown", "click", "scroll", "touchstart"];
+    eventos.forEach(ev => {
+      document.addEventListener(ev, this._handlerActividad, { passive: true });
+    });
+
+    // Verificar cada 60 segundos
+    this._intervalVerificacion = setInterval(() => {
+      if (!this._sesionVigente()) {
+        console.warn("⏰ Sesión expirada por inactividad.");
+        this.detenerVigilanteInactividad();
+        this.trabajador = null;
+        localStorage.removeItem(STORAGE_KEY);
+
+        if (typeof onExpiracion === "function") {
+          onExpiracion();
+        } else {
+          // Comportamiento por defecto: redirigir al login
+          alert("Tu sesión se cerró automáticamente por inactividad (30 minutos).");
+          window.location.href = "/pages/login.html";
+        }
+      }
+    }, 60 * 1000);
+
+    console.log("🛡️ Vigilante de inactividad iniciado (30 min).");
+  }
+
+  /**
+   * Detiene el vigilante de inactividad.
+   * Se llama automáticamente en logout() y cuando la sesión expira.
+   */
+  detenerVigilanteInactividad() {
+    if (this._intervalVerificacion) {
+      clearInterval(this._intervalVerificacion);
+      this._intervalVerificacion = null;
+    }
+    if (this._handlerActividad) {
+      const eventos = ["mousemove", "keydown", "click", "scroll", "touchstart"];
+      eventos.forEach(ev => {
+        document.removeEventListener(ev, this._handlerActividad);
+      });
+      this._handlerActividad = null;
+    }
+  }
+
+  // ===========================================================
+  // MÉTODOS EXISTENTES (sin cambios)
+  // ===========================================================
+
   /**
    * Obtener trabajador actualmente validado
    */
@@ -153,11 +260,12 @@ export class AuthManager {
   }
 
   /**
-   * Logout - limpiar sesión
+   * Logout - limpiar sesión y detener vigilante
    */
   logout() {
+    this.detenerVigilanteInactividad();  // ← NUEVO: limpia el intervalo y listeners
     this.trabajador = null;
-    localStorage.removeItem("trabajador_validado");
+    localStorage.removeItem(STORAGE_KEY);
   }
 
   /**

@@ -9,6 +9,14 @@ import { statusBadge } from "../../components/statusBadge.js";
 
 const TZ_FIJA = "America/Lima";
 
+function _normalizarIdEstado(valor) {
+  const texto = String(valor || "").trim().toUpperCase();
+  if (!texto) return "";
+  const soloDigitos = texto.replace(/\D+/g, "");
+  if (!soloDigitos) return texto;
+  return String(parseInt(soloDigitos, 10));
+}
+
 function extraerFechaVisual(valor) {
   if (!valor) return null;
   const texto = String(valor).trim();
@@ -141,9 +149,15 @@ export function obtenerNombreEstado(idEstado) {
     return idEstado || "---";
   }
 
-  const estado = estados.find(e => 
-    e.id === idEstado || e.id === idEstado?.toString()
-  );
+  const idBuscadoRaw = String(idEstado || "").trim();
+  const idBuscadoNorm = _normalizarIdEstado(idBuscadoRaw);
+
+  const estado = estados.find((e) => {
+    const idRaw = String(e.id || "").trim();
+    if (!idRaw) return false;
+    if (idRaw === idBuscadoRaw) return true;
+    return _normalizarIdEstado(idRaw) === idBuscadoNorm;
+  });
   
   return estado ? estado.nombre : idEstado || "---";
 }
@@ -153,9 +167,14 @@ export function obtenerNombreEstado(idEstado) {
  */
 export function obtenerColorEstado(idEstado) {
   const estados = estadoService.listarSync();
-  const estado = estados.find(e => 
-    e.id === idEstado || e.id === idEstado?.toString()
-  );
+  const idBuscadoRaw = String(idEstado || "").trim();
+  const idBuscadoNorm = _normalizarIdEstado(idBuscadoRaw);
+  const estado = estados.find((e) => {
+    const idRaw = String(e.id || "").trim();
+    if (!idRaw) return false;
+    if (idRaw === idBuscadoRaw) return true;
+    return _normalizarIdEstado(idRaw) === idBuscadoNorm;
+  });
   
   return estado?.color || "slate";
 }

@@ -1,4 +1,4 @@
-import { renderSidebar } from "./sidebar.js";
+import { renderSidebar, initSidebarEvents } from "./sidebar.js";
 import { renderHeader } from "./header.js";
 import { icon } from "./icons.js";
 
@@ -30,6 +30,9 @@ export function renderAppLayout({ mountNode, pageTitle, activePage, sesion, cont
   const overlay = document.getElementById("sidebar-overlay");
   const toggleBtn = document.getElementById("btn-sidebar-toggle");
   const hamburgerBtn = document.getElementById("btn-hamburger");
+
+  // Inicializar eventos del sidebar (submenús, etc)
+  initSidebarEvents();
 
   // --- Toggle colapsar desktop ---
   const updateToggleState = (isCollapsed) => {

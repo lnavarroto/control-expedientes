@@ -12,16 +12,70 @@ import { ALERT_TONES } from "../../core/uiTokens.js";
 const PAGE_SIZE_DEFAULT = 8;
 const SORTABLE_COLUMNS = ["expediente", "materia", "juzgado", "ingreso", "ubicacion", "paquete", "estado"];
 
-function actionButtons(id) {
+const SALIDA_EXPEDIENTE_RULES = {
+  PRESTAMO: {
+    destinos: ["JUZGADO", "JUEZ", "ESPECIALISTA", "ASISTENTE", "AREA_USUARIA", "SALA_AUDIENCIA"],
+    motivos: ["LECTURA_EXPEDIENTE", "CONSULTA", "REVISION_INTERNA", "AUDIENCIA", "APOYO_ORDENAMIENTO"]
+  },
+  SALIDA_INTERNA: {
+    destinos: ["JUZGADO", "JUEZ", "ESPECIALISTA", "ASISTENTE", "AREA_DIGITALIZACION", "SALA_AUDIENCIA"],
+    motivos: ["REVISION_INTERNA", "DIGITALIZACION", "AUDIENCIA", "ORDENAMIENTO", "APOYO_ORDENAMIENTO"]
+  },
+  SALIDA_EXTERNA: {
+    destinos: ["OTRO_JUZGADO", "ENTIDAD_EXTERNA", "MESA_PARTES", "FISCALIA", "PROCURADURIA"],
+    motivos: ["TRASLADO", "CONSULTA_EXTERNA", "REMISION_TEMPORAL", "REVISION_EXTERNA"]
+  },
+  ENVIO_DEFINITIVO: {
+    destinos: ["ARCHIVO_CENTRAL", "ARCHIVO_GENERAL", "OTRO_JUZGADO", "ENTIDAD_EXTERNA"],
+    motivos: ["REMISION_FINAL", "CIERRE_EXPEDIENTE", "ARCHIVO_DEFINITIVO", "TRANSFERENCIA_DEFINITIVA"]
+  }
+};
+
+function prettyLabel(value) {
+  return String(value || "")
+    .toLowerCase()
+    .split("_")
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function obtenerUsuarioLogueadoTexto() {
+  try {
+    const trabajador = JSON.parse(localStorage.getItem("trabajador_validado") || "null");
+    if (!trabajador) return "Sin identificar";
+    return `${trabajador.dni} - ${trabajador.nombres} ${trabajador.apellidos}`;
+  } catch {
+    return "Sin identificar";
+  }
+}
+
+function esEstadoPrestamoLegacy(estado) {
+  const base = normalizarTexto(estado || "");
+  return base.includes("prestamo") || base.includes("prestado") || base.includes("derivado");
+}
+
+function resolverEstadoRetornoLegacy() {
+  const estados = (expedienteService.estados() || []).map((e) => String(e || ""));
+  const estadoRetornado = estados.find((e) => normalizarTexto(e).includes("retornad"));
+  if (estadoRetornado) return estadoRetornado;
+  const estadoRegistrado = estados.find((e) => normalizarTexto(e).includes("registrad"));
+  return estadoRegistrado || "Registrado";
+}
+
+function actionButtons(id, estado) {
+  const esPrestamo = esEstadoPrestamoLegacy(estado);
+  const accionPrimaria = esPrestamo ? "retorno" : "salida";
+  const textoPrimario = esPrestamo ? "Retorno" : "Salida";
   return `
     <div class="flex items-start gap-2">
       <button class="btn btn-secondary text-xs inline-flex items-center gap-1" data-action="detalle" data-id="${id}">${icon("eye", "w-3.5 h-3.5")}<span>Ver</span></button>
+      <button class="btn btn-secondary text-xs inline-flex items-center gap-1" data-action="${accionPrimaria}" data-id="${id}">${icon("moveRight", "w-3.5 h-3.5")}<span>${textoPrimario}</span></button>
       <details class="relative">
         <summary class="btn btn-secondary text-xs list-none cursor-pointer">Acciones</summary>
         <div class="absolute right-0 mt-1 w-36 rounded-lg border border-slate-200 bg-white shadow-lg p-1 z-20">
           <button class="w-full text-left px-2 py-1.5 rounded text-xs text-slate-700 hover:bg-slate-100 inline-flex items-center gap-1" data-action="editar" data-id="${id}">${icon("edit", "w-3.5 h-3.5")}<span>Editar</span></button>
           <button class="w-full text-left px-2 py-1.5 rounded text-xs text-slate-700 hover:bg-slate-100 inline-flex items-center gap-1" data-action="mover" data-id="${id}">${icon("transfer", "w-3.5 h-3.5")}<span>Mover</span></button>
-          <button class="w-full text-left px-2 py-1.5 rounded text-xs text-slate-700 hover:bg-slate-100 inline-flex items-center gap-1" data-action="salida" data-id="${id}">${icon("moveRight", "w-3.5 h-3.5")}<span>Salida</span></button>
         </div>
       </details>
     </div>
@@ -75,7 +129,7 @@ function renderListado(data, sortState) {
           <td class="px-4 py-3 border-t border-slate-100 align-top text-slate-700">${item.ubicacionActual}</td>
           <td class="px-4 py-3 border-t border-slate-100 align-top text-slate-700">${item.paqueteId || "-"}</td>
           <td class="px-4 py-3 border-t border-slate-100 align-top">${statusBadge(item.estado)}</td>
-          <td class="px-4 py-3 border-t border-slate-100 align-top">${actionButtons(item.id)}</td>
+          <td class="px-4 py-3 border-t border-slate-100 align-top">${actionButtons(item.id, item.estado)}</td>
         </tr>
       `;
     })
@@ -410,29 +464,162 @@ function modalSalida(expediente, onSaved) {
     content: `
       <div class="grid gap-3">
         <div>
+          <label class="text-sm">Tipo de salida</label>
+          <select id="modal-salida-tipo" class="select-base">
+            <option value="">Seleccione tipo</option>
+            <option value="PRESTAMO">Préstamo</option>
+            <option value="SALIDA_INTERNA">Salida interna</option>
+            <option value="SALIDA_EXTERNA">Salida externa</option>
+            <option value="ENVIO_DEFINITIVO">Envío definitivo</option>
+          </select>
+        </div>
+        <div>
           <label class="text-sm">Destino</label>
-          <input id="modal-salida-destino" class="input-base" placeholder="Ej: Juzgado Civil 01" value="Juzgado" />
+          <select id="modal-salida-destino" class="select-base" disabled>
+            <option value="">Seleccione tipo primero</option>
+          </select>
         </div>
         <div>
           <label class="text-sm">Motivo de salida</label>
-          <input id="modal-salida-motivo" class="input-base" placeholder="Ej: Préstamo interno" value="Préstamo interno" />
+          <select id="modal-salida-motivo" class="select-base" disabled>
+            <option value="">Seleccione tipo primero</option>
+          </select>
+        </div>
+        <div>
+          <label class="text-sm">Observación</label>
+          <input id="modal-salida-observacion" class="input-base" placeholder="Observación opcional" value="Salida registrada desde listado" />
         </div>
       </div>
     `,
     confirmText: "Registrar salida",
     onConfirm: (close) => {
-      const destino = document.getElementById("modal-salida-destino")?.value || "Juzgado";
-      const motivo = document.getElementById("modal-salida-motivo")?.value || "Salida";
+      const tipo = document.getElementById("modal-salida-tipo")?.value || "";
+      const destino = document.getElementById("modal-salida-destino")?.value || "";
+      const motivo = document.getElementById("modal-salida-motivo")?.value || "";
+      const observacion = document.getElementById("modal-salida-observacion")?.value || "Salida registrada desde listado";
+
+      if (!tipo) {
+        showToast("Debes seleccionar tipo de salida", "warning");
+        return;
+      }
+      if (!destino) {
+        showToast("Debes seleccionar destino", "warning");
+        return;
+      }
+      if (!motivo) {
+        showToast("Debes seleccionar motivo de salida", "warning");
+        return;
+      }
+
       expedienteService.actualizarUbicacionEstado({
         id: expediente.id,
-        ubicacionActual: destino,
+        ubicacionActual: prettyLabel(destino),
         estado: "Derivado",
-        motivo,
-        observacion: "Salida registrada desde listado"
+        motivo: prettyLabel(motivo),
+        observacion
       });
+
       close();
       onSaved();
       showToast("Salida registrada correctamente", "success");
+    }
+  });
+
+  const tipoEl = document.getElementById("modal-salida-tipo");
+  const destinoEl = document.getElementById("modal-salida-destino");
+  const motivoEl = document.getElementById("modal-salida-motivo");
+
+  const poblarSelect = (el, opciones, placeholder) => {
+    if (!el) return;
+    el.innerHTML = `<option value="">${placeholder}</option>${opciones
+      .map((opt) => `<option value="${opt}">${prettyLabel(opt)}</option>`)
+      .join("")}`;
+    el.disabled = opciones.length === 0;
+  };
+
+  tipoEl?.addEventListener("change", () => {
+    const reglas = SALIDA_EXPEDIENTE_RULES[String(tipoEl.value || "").trim()];
+    if (!reglas) {
+      poblarSelect(destinoEl, [], "Seleccione tipo primero");
+      poblarSelect(motivoEl, [], "Seleccione tipo primero");
+      return;
+    }
+    poblarSelect(destinoEl, reglas.destinos, "Seleccione destino");
+    poblarSelect(motivoEl, reglas.motivos, "Seleccione motivo");
+  });
+}
+
+function modalRetorno(expediente, onSaved) {
+  const responsableRecepcion = obtenerUsuarioLogueadoTexto();
+
+  openModal({
+    title: `Registrar retorno ${expediente.numeroExpediente}`,
+    content: `
+      <div class="grid gap-3">
+        <div>
+          <label class="text-sm">Motivo de retorno</label>
+          <select id="modal-retorno-motivo" class="select-base">
+            <option value="">Seleccione motivo</option>
+            <option value="DEVOLUCION_PRESTAMO">Devolución de préstamo</option>
+            <option value="CULMINO_REVISION">Culminó revisión</option>
+            <option value="RETORNO_DESDE_AUDIENCIA">Retorno desde audiencia</option>
+          </select>
+        </div>
+        <div>
+          <label class="text-sm">Condición de retorno</label>
+          <select id="modal-retorno-condicion" class="select-base">
+            <option value="">Seleccione condición</option>
+            <option value="CONFORME">Conforme</option>
+            <option value="CON_OBSERVACION">Con observación</option>
+          </select>
+        </div>
+        <div>
+          <label class="text-sm">Responsable de recepción</label>
+          <input id="modal-retorno-responsable" class="input-base" value="${responsableRecepcion}" readonly />
+        </div>
+        <div>
+          <label class="text-sm">Observación</label>
+          <input id="modal-retorno-observacion" class="input-base" placeholder="Detalle del retorno (obligatorio si hay observación)" />
+        </div>
+      </div>
+    `,
+    confirmText: "Registrar retorno",
+    onConfirm: (close) => {
+      const motivo = document.getElementById("modal-retorno-motivo")?.value || "";
+      const condicion = document.getElementById("modal-retorno-condicion")?.value || "";
+      const observacion = document.getElementById("modal-retorno-observacion")?.value || "";
+
+      if (!motivo) {
+        showToast("Debes seleccionar motivo de retorno", "warning");
+        return;
+      }
+      if (!condicion) {
+        showToast("Debes seleccionar condición de retorno", "warning");
+        return;
+      }
+      if (condicion === "CON_OBSERVACION" && !String(observacion).trim()) {
+        showToast("Debes detallar la observación del retorno", "warning");
+        return;
+      }
+
+      const estadoRetorno = resolverEstadoRetornoLegacy();
+      const observacionFinal = [
+        `RETORNO: ${prettyLabel(motivo)}`,
+        `CONDICION: ${prettyLabel(condicion)}`,
+        String(observacion || "").trim()
+      ].filter(Boolean).join(" | ");
+
+      expedienteService.actualizarUbicacionEstado({
+        id: expediente.id,
+        ubicacionActual: "ARCHIVO_MODULAR",
+        estado: estadoRetorno,
+        motivo: prettyLabel(motivo),
+        observacion: observacionFinal
+      });
+
+      close();
+      onSaved();
+      showToast("Retorno registrado correctamente", "success");
     }
   });
 }
@@ -588,6 +775,11 @@ export function initListadoPage({ mountNode }) {
 
         if (button.dataset.action === "salida") {
           modalSalida(expediente, () => initListadoPage({ mountNode }));
+          return;
+        }
+
+        if (button.dataset.action === "retorno") {
+          modalRetorno(expediente, () => initListadoPage({ mountNode }));
           return;
         }
 

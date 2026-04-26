@@ -636,6 +636,353 @@ textarea:focus-visible,
   animation: modalSlideUp 0.24s ease;
 }
 
+.retorno-modal-panel {
+  border-radius: 1.1rem;
+  border: 1px solid #d7e2ec;
+  box-shadow: 0 26px 60px rgba(15, 23, 42, 0.2);
+}
+
+.retorno-modal-wrap {
+  display: grid;
+  gap: 1rem;
+}
+
+.retorno-modal-hero {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1.05rem;
+  border-radius: 1rem;
+  background: linear-gradient(135deg, #eff6ff 0%, #f8fafc 48%, #eef2ff 100%);
+  border: 1px solid #dbeafe;
+}
+
+.retorno-modal-kicker {
+  margin: 0 0 0.2rem;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #1d4ed8;
+}
+
+.retorno-modal-heading {
+  margin: 0;
+  font-size: 1.04rem;
+  line-height: 1.35;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.retorno-modal-copy {
+  margin: 0.35rem 0 0;
+  font-size: 0.9rem;
+  line-height: 1.55;
+  color: #475569;
+}
+
+.retorno-modal-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 8.5rem;
+  padding: 0.55rem 0.8rem;
+  border-radius: 999px;
+  font-size: 0.77rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.retorno-modal-status--open {
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fcd34d;
+}
+
+.retorno-modal-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.85rem;
+}
+
+.retorno-modal-card {
+  display: grid;
+  gap: 0.32rem;
+  padding: 0.95rem 1rem;
+  border-radius: 0.95rem;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+}
+
+.retorno-modal-card--strong {
+  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+  border-color: #bfdbfe;
+}
+
+.retorno-modal-label {
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+.retorno-modal-value {
+  font-size: 0.98rem;
+  line-height: 1.4;
+  color: #0f172a;
+}
+
+.retorno-modal-meta {
+  font-size: 0.82rem;
+  color: #475569;
+}
+
+.retorno-modal-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  padding: 0.85rem 0.95rem;
+  border-radius: 0.9rem;
+  border: 1px solid #dbeafe;
+  background: #f8fbff;
+  color: #334155;
+}
+
+.retorno-modal-note p {
+  margin: 0;
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+
+.retorno-modal-note-dot {
+  width: 0.65rem;
+  height: 0.65rem;
+  margin-top: 0.35rem;
+  border-radius: 999px;
+  background: #2563eb;
+  flex: 0 0 auto;
+}
+
+.retorno-modal-form {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.retorno-modal-textarea-label {
+  font-size: 0.8rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #334155;
+}
+
+.retorno-modal-textarea {
+  width: 100%;
+  min-height: 7rem;
+  resize: vertical;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.9rem;
+  padding: 0.9rem 1rem;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  background: #ffffff;
+  color: #0f172a;
+}
+
+.retorno-modal-textarea:focus {
+  outline: none;
+  border-color: #1d5f8b;
+  box-shadow: 0 0 0 3px rgba(29, 95, 139, 0.16);
+}
+
+.retorno-modal-help {
+  margin: 0;
+  font-size: 0.8rem;
+  color: #64748b;
+}
+
+@media (max-width: 768px) {
+  .retorno-modal-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .retorno-modal-hero {
+    display: grid;
+  }
+
+  .retorno-modal-status {
+    min-width: 0;
+    width: fit-content;
+  }
+}
+
+/* Modal Asignar Expedientes */
+.asignar-expedientes-panel {
+  border-radius: 1rem;
+  border: 1px solid #dbe5ef;
+  box-shadow: 0 22px 50px rgba(15, 23, 42, 0.22);
+}
+
+.asignar-expedientes-wrap {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.asignar-expedientes-filters {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 0.75rem;
+}
+
+.asignar-expedientes-field {
+  min-width: 0;
+}
+
+.asignar-expedientes-label {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: #475569;
+  margin-bottom: 0.3rem;
+}
+
+.asignar-expedientes-input,
+.asignar-expedientes-select {
+  width: 100%;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.7rem;
+  padding: 0.62rem 0.8rem;
+  font-size: 0.92rem;
+  background: #ffffff;
+}
+
+.asignar-expedientes-input:focus,
+.asignar-expedientes-select:focus {
+  outline: none;
+  border-color: #1d5f8b;
+  box-shadow: 0 0 0 3px rgba(29, 95, 139, 0.16);
+}
+
+.asignar-expedientes-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.asignar-expedientes-counters,
+.asignar-expedientes-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+
+.asignar-expedientes-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.3rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.76rem;
+  font-weight: 700;
+  background: #f1f5f9;
+  color: #334155;
+}
+
+.asignar-expedientes-pill--selected {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.asignar-expedientes-action-btn {
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  color: #334155;
+  border-radius: 0.6rem;
+  padding: 0.32rem 0.6rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.asignar-expedientes-action-btn:hover {
+  background: #f8fafc;
+  border-color: #94a3b8;
+}
+
+.asignar-expedientes-list {
+  max-height: min(58vh, 540px);
+  overflow-y: auto;
+  border: 1px solid #dbe4ee;
+  border-radius: 0.8rem;
+  background: #fff;
+}
+
+.asignar-expedientes-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  padding: 0.7rem 0.8rem;
+  border-bottom: 1px solid #eef2f7;
+  cursor: pointer;
+  transition: background-color 0.16s ease;
+}
+
+.asignar-expedientes-row:hover {
+  background: #f8fbff;
+}
+
+.asignar-expedientes-row:last-child {
+  border-bottom: 0;
+}
+
+.asignar-expedientes-checkbox {
+  margin-top: 0.2rem;
+}
+
+.asignar-expedientes-row-content {
+  min-width: 0;
+  flex: 1;
+}
+
+.asignar-expedientes-code {
+  color: #0f172a;
+  font-size: 0.9rem;
+  font-weight: 700;
+  line-height: 1.25;
+  word-break: break-word;
+}
+
+.asignar-expedientes-meta {
+  margin-top: 0.18rem;
+  color: #64748b;
+  font-size: 0.74rem;
+}
+
+.asignar-expedientes-empty {
+  padding: 1rem;
+  text-align: center;
+  color: #64748b;
+  font-size: 0.86rem;
+  font-style: italic;
+}
+
+@media (max-width: 900px) {
+  .asignar-expedientes-filters {
+    grid-template-columns: 1fr;
+  }
+
+  .asignar-expedientes-list {
+    max-height: 48vh;
+  }
+}
+
 @keyframes modalFadeIn {
   from {
     opacity: 0;

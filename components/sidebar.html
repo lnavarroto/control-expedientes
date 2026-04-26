@@ -1,14 +1,24 @@
 ﻿<aside class="bg-slate-900 text-white p-5">
-  <p class="text-xs uppercase tracking-[0.2em] text-slate-300">MÃ³dulo Civil</p>
+  <p class="text-xs uppercase tracking-[0.2em] text-slate-300">Módulo Civil</p>
   <h1 class="font-bold text-2xl mt-2">Archivo Sullana</h1>
   <nav class="mt-6 space-y-1">
     <a href="dashboard.html" class="nav-link active">Dashboard</a>
     <a href="registro-expedientes.html" class="nav-link">Registrar expedientes</a>
     <a href="expedientes.html" class="nav-link">Ver expedientes</a>
     <a href="ubicaciones.html" class="nav-link">Ubicaciones</a>
-    <a href="paquetes.html" class="nav-link">Paquetes</a>
-    <a href="busqueda.html" class="nav-link">BÃºsqueda</a>
+    <div class="nav-group" id="paquetes-menu">
+      <button class="nav-link flex items-center w-full justify-between" id="btn-paquetes-toggle" type="button">
+        <span><span class="icon">📦</span> Gestión de paquetes</span>
+        <span id="icon-paquetes-chevron">▼</span>
+      </button>
+      <div class="ml-4 space-y-1 hidden" id="submenu-paquetes">
+        <a href="#/paquetes-general" class="nav-link nav-sub" data-nav-page="paquetes-general">Paquetes para Archivo General</a>
+        <a href="#/paquetes-modular" class="nav-link nav-sub" data-nav-page="paquetes-modular">Paquetes para Archivo Modular</a>
+      </div>
+    </div>
     <a href="movimientos.html" class="nav-link">Movimientos</a>
   </nav>
+  </aside>
+  <script src="../assets/js/components/sidebar.js"></script>
 </aside>
 

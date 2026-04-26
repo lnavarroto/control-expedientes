@@ -176,7 +176,6 @@ export async function initDashboardPage({ mountNode }) {
     const quickActions = [
       { label: "Registrar", page: "registro", detail: "Ingreso manual o lectora", iconName: "edit", tone: "primary", glow: "from-blue-500 to-cyan-500" },
       { label: "Ver listado", page: "expedientes", detail: "Con filtros y opciones", iconName: "list", tone: "neutral", glow: "from-slate-500 to-slate-600" },
-      { label: "Búsqueda avanzada", page: "busqueda", detail: "Consulta por filtros", iconName: "busqueda", tone: "accent", glow: "from-indigo-500 to-violet-500" },
       { label: "Ubicaciones", page: "ubicaciones", detail: "Movimientos en tiempo real", iconName: "mapPin", tone: "success", glow: "from-green-500 to-emerald-500" },
       { label: "Paquetes", page: "paquetes", detail: "Gestión y agrupación", iconName: "paquetes", tone: "warning", glow: "from-amber-500 to-orange-500" },
       { label: "Movimientos", page: "movimientos", detail: "Historial y trazabilidad", iconName: "transfer", tone: "danger", glow: "from-rose-500 to-red-500" },

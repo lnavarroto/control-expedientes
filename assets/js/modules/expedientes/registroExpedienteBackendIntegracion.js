@@ -159,7 +159,7 @@ export function construirPayloadRegistro(formData, usuario) {
     fecha_ingreso: formData.fechaIngreso || new Date().toISOString().slice(0, 10),
     hora_ingreso: formData.horaIngreso || new Date().toTimeString().slice(0, 5),
     observaciones: (formData.observaciones || "").toString().trim(),
-    origen_registro: "SISTEMA",
+    origen_registro: "MANUAL",
     registrado_por: `${usuario.nombres} ${usuario.apellidos}`,
     dni_usuario: usuario.dni,
     nombres_usuario: usuario.nombres,

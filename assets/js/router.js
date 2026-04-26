@@ -10,25 +10,30 @@ import { showToast } from "./components/toast.js";
 import { initDashboardPage } from "./modules/dashboard/dashboardPage.js";
 import { initRegistroPage } from "./modules/expedientes/registroPage.js";
 import { initListadoPage } from "./modules/expedientes/listadoPageBackend.js";
-import { initBusquedaPage } from "./modules/busqueda/busquedaPage.js";
 import { initUbicacionesPage } from "./modules/ubicaciones/ubicacionesPage.js";
 import { initPaquetesPage } from "./modules/paquetes/paquetesPage.js";
+import { renderPaquetesGeneralView } from "./modules/paquetesGeneral/paquetesGeneralView.js";
 import { initMovimientosPage } from "./modules/movimientos/movimientosPage.js";
 import { initActualizacionPage } from "./modules/actualizacion/actualizacionPage.js";
 import { initConfiguacionPage } from "./modules/configuracion/configuracionPage.js";
 import { addIconsToButtons } from "./utils/buttonIcons.js";
 
 const ROUTES = {
+  paquetes: { title: "Paquetes para Archivo Modular", init: initPaquetesPage },
   dashboard: { title: "Dashboard Institucional", init: initDashboardPage },
   registro: { title: "Registro de Expedientes", init: initRegistroPage },
   expedientes: { title: "Listado de Expedientes", init: initListadoPage },
-  busqueda: { title: "Búsqueda de Expedientes", init: initBusquedaPage },
   ubicaciones: { title: "Gestión de Ubicaciones", init: initUbicacionesPage },
-  paquetes: { title: "Gestión de Paquetes", init: initPaquetesPage },
-  movimientos: { title: "Movimientos e Historial", init: initMovimientosPage },
+  "paquetes-general": { title: "Paquetes para Archivo General", init: renderPaquetesGeneralView },
+  "paquetes-modular": { title: "Paquetes para Archivo Modular", init: initPaquetesPage },
+  "movimientos-modular": { title: "Historial de Movimientos", init: initMovimientosPage },
+  movimientos: { title: "Movimientos Activos", init: initMovimientosPage },
   actualizacion: { title: "Actualización de Datos", init: initActualizacionPage },
-  configuracion: { title: "Configuración del Sistema", init: initConfiguacionPage }
+  configuracion: { title: "Configuración del Sistema", init: initConfiguacionPage },
+  "archivo-general": { title: "Paquetes para Archivo General", init: renderPaquetesGeneralView }
 };
+
+let preloadCatalogsStarted = false;
 
 function inPagesFolder() {
   return window.location.pathname.includes("/pages/");
@@ -68,11 +73,14 @@ export async function initRouter() {
   expedienteService.init();
   paqueteService.init();
   
-  // Precargar datos desde Google Sheet (en paralelo, sin esperar)
-  materiaService.precargar().catch(err => console.warn("⚠️ Error precargando materias:", err));
-  juzgadoService.precargar().catch(err => console.warn("⚠️ Error precargando juzgados:", err));
-  estadoService.precargar().catch(err => console.warn("⚠️ Error precargando estados:", err));
-  paqueteService.precargar().catch(err => console.warn("⚠️ Error precargando paquetes:", err));
+  // Precargar catálogos solo una vez por sesión para evitar saturar navegación.
+  if (!preloadCatalogsStarted) {
+    preloadCatalogsStarted = true;
+    materiaService.precargar().catch(err => console.warn("⚠️ Error precargando materias:", err));
+    juzgadoService.precargar().catch(err => console.warn("⚠️ Error precargando juzgados:", err));
+    estadoService.precargar().catch(err => console.warn("⚠️ Error precargando estados:", err));
+    paqueteService.precargar().catch(err => console.warn("⚠️ Error precargando paquetes:", err));
+  }
 
   const page = document.body.dataset.page || "dashboard";
   const route = ROUTES[page];
@@ -162,6 +170,9 @@ export async function initRouter() {
   const moduleRoot = document.getElementById("module-root");
   if (moduleRoot && route.init) {
     console.log(`🚀 Inicializando módulo: ${page}`);
+    
+    // Limpiar contenido anterior
+    moduleRoot.innerHTML = '';
     
     // Ejecutar init (puede ser async o sync)
     const result = route.init({ mountNode: moduleRoot });

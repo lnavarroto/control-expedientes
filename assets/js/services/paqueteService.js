@@ -214,3 +214,27 @@ export async function asignarColorEspecialista(payload) {
   });
   return await res.json();
 }
+
+export async function listarUbicacionesActivas() {
+  const url = `${appConfig.googleSheetURL}?action=listar_ubicaciones_activas`;
+  const res = await fetch(url, { method: "GET", cache: "no-store" });
+  return await res.json();
+}
+
+export async function listarPisosPorUbicacion(idUbicacion) {
+  const url = `${appConfig.googleSheetURL}?${new URLSearchParams({
+    action: "listar_pisos_por_ubicacion",
+    id_ubicacion: String(idUbicacion || "").trim()
+  })}`;
+  const res = await fetch(url, { method: "GET", cache: "no-store" });
+  return await res.json();
+}
+
+export async function asignarUbicacionPaquete(payload) {
+  const res = await fetch(appConfig.googleSheetURL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action: "asignar_ubicacion_paquete", ...payload })
+  });
+  return await res.json();
+}

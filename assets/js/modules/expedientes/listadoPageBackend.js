@@ -20,6 +20,81 @@ import {
 } from "./expedientesMapeo.js";
 import { ALERT_TONES, CARD_TONES } from "../../core/uiTokens.js";
 
+const SALIDA_EXPEDIENTE_RULES = {
+  PRESTAMO: {
+    destinos: ["JUZGADO", "JUEZ", "ESPECIALISTA", "ASISTENTE", "AREA_USUARIA", "SALA_AUDIENCIA"],
+    motivos: ["LECTURA_EXPEDIENTE", "CONSULTA", "REVISION_INTERNA", "AUDIENCIA", "APOYO_ORDENAMIENTO"]
+  },
+  SALIDA_INTERNA: {
+    destinos: ["JUZGADO", "JUEZ", "ESPECIALISTA", "ASISTENTE", "AREA_DIGITALIZACION", "SALA_AUDIENCIA"],
+    motivos: ["REVISION_INTERNA", "DIGITALIZACION", "AUDIENCIA", "ORDENAMIENTO", "APOYO_ORDENAMIENTO"]
+  },
+  SALIDA_EXTERNA: {
+    destinos: ["OTRO_JUZGADO", "ENTIDAD_EXTERNA", "MESA_PARTES", "FISCALIA", "PROCURADURIA"],
+    motivos: ["TRASLADO", "CONSULTA_EXTERNA", "REMISION_TEMPORAL", "REVISION_EXTERNA"]
+  },
+  ENVIO_DEFINITIVO: {
+    destinos: ["ARCHIVO_CENTRAL", "ARCHIVO_GENERAL", "OTRO_JUZGADO", "ENTIDAD_EXTERNA"],
+    motivos: ["REMISION_FINAL", "CIERRE_EXPEDIENTE", "ARCHIVO_DEFINITIVO", "TRANSFERENCIA_DEFINITIVA"]
+  }
+};
+
+function _prettyLabel(value) {
+  return String(value || "")
+    .toLowerCase()
+    .split("_")
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function _normalizarEstadoClave(valor) {
+  return String(valor || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^A-Z0-9]+/gi, "_")
+    .replace(/^_+|_+$/g, "")
+    .toUpperCase();
+}
+
+function _resolverIdEstadoDesdeCatalogo(aliasList, idFallback = "") {
+  const lista = estadoService.listarSync() || [];
+  const map = new Map(
+    lista.map((item) => [
+      _normalizarEstadoClave(item.nombre_estado || item.nombre || ""),
+      String(item.id_estado || item.id || "").trim()
+    ])
+  );
+  const aliases = Array.isArray(aliasList) ? aliasList : [aliasList];
+  for (const alias of aliases) {
+    const id = map.get(_normalizarEstadoClave(alias));
+    if (id) return id;
+  }
+  return String(idFallback || "").trim();
+}
+
+function _estadoExpedienteNormalizado(expediente, formateado = null) {
+  const porId = obtenerNombreEstado(expediente?.id_estado);
+  const porTexto = expediente?.nombre_estado || expediente?.estado || formateado?.estado || "";
+  return _normalizarEstadoClave(porId || porTexto);
+}
+
+function _esEstadoPrestamo(expediente, formateado = null) {
+  const estadoNormalizado = _estadoExpedienteNormalizado(expediente, formateado);
+  if (
+    estadoNormalizado.includes("PRESTAMO") ||
+    estadoNormalizado.includes("PRESTADO") ||
+    estadoNormalizado.includes("DERIVADO")
+  ) return true;
+
+  const idConRetorno = [
+    _resolverIdEstadoDesdeCatalogo(["PRESTAMO", "PRESTADO"], ""),
+    _resolverIdEstadoDesdeCatalogo(["DERIVADO"], "")
+  ].filter(Boolean);
+
+  return idConRetorno.includes(String(expediente?.id_estado || "").trim());
+}
+
 let catalogosEdicionPromise = null;
 
 async function fetchCatalogo(baseURL, action) {
@@ -91,6 +166,7 @@ function renderTablaExpedientes(expedientes, paginaActual = 1, itemsPorPagina = 
   // Renderizar filas
   const filas = expedientesPagina.map((exp, indexEnPagina) => {
     const formateado = formatearExpediente(exp);
+    const enPrestamo = _esEstadoPrestamo(exp, formateado);
     // Mostrar ORDEN con el correlativo real de id_expediente
     const numeroGlobal = idExpToNumber(exp.id_expediente) || (expedientesOrdenados.length - inicio - indexEnPagina);
     const estadoHtml = statusBadge(formateado.estado);
@@ -106,7 +182,10 @@ function renderTablaExpedientes(expedientes, paginaActual = 1, itemsPorPagina = 
         <td class="px-4 py-3 border-t border-slate-100">${estadoHtml}</td>
         <td class="px-4 py-3 border-t border-slate-100 text-sm text-slate-700">${formateado.registradoPor}</td>
         <td class="px-4 py-3 border-t border-slate-100">
-          <button class="btn btn-secondary text-xs btn-ver-detalles inline-flex items-center gap-1" data-numero="${formateado.numero}">${icon("eye", "w-3.5 h-3.5")}<span>Ver</span></button>
+          <div class="flex items-center justify-center gap-2">
+            <button class="btn btn-secondary text-xs btn-ver-detalles inline-flex items-center gap-1" data-numero="${formateado.numero}">${icon("eye", "w-3.5 h-3.5")}<span>Ver</span></button>
+            <button class="btn btn-secondary text-xs btn-movimiento-exp inline-flex items-center gap-1" data-numero="${formateado.numero}" data-accion="${enPrestamo ? "retorno" : "salida"}">${icon("moveRight", "w-3.5 h-3.5")}<span>${enPrestamo ? "Retorno" : "Salida"}</span></button>
+          </div>
         </td>
       </tr>
     `;
@@ -351,6 +430,12 @@ function renderPanelFiltradores(expedientes, filtros = {}) {
  * Inicializar página de listado
  */
 export async function initListadoPage({ mountNode, forceRefresh = false }) {
+  try {
+    await estadoService.precargar();
+  } catch (error) {
+    console.warn("⚠️ No se pudo refrescar catálogo de estados:", error?.message || error);
+  }
+
   // ✅ OPTIMIZACIÓN: Mostrar caché primero (si existe) para velocidad inmediata
   const cachedExp = forceRefresh ? [] : expedienteService.listarDelBackendSync();
   
@@ -359,7 +444,7 @@ export async function initListadoPage({ mountNode, forceRefresh = false }) {
     renderListadoExpedientes(cachedExp, mountNode);
     
     // En background, actualizar con datos frescos
-    expedienteService.listarDelBackend({ forceRefresh: false })
+    expedienteService.listarDelBackend({ forceRefresh: true })
       .then(resultado => {
         if (resultado.success && resultado.data) {
           console.log("✅ Datos actualizados del backend");
@@ -423,6 +508,16 @@ function renderListadoExpedientes(expedientes, mountNode) {
     estado: "",
     texto: ""
   };
+
+  const handlerSyncExpedientes = async () => {
+    expedienteService.limpiarCacheBackend();
+    await initListadoPage({ mountNode, forceRefresh: true });
+  };
+  if (window.__ceExpedientesUpdatedHandler) {
+    window.removeEventListener("expedientes:updated", window.__ceExpedientesUpdatedHandler);
+  }
+  window.__ceExpedientesUpdatedHandler = handlerSyncExpedientes;
+  window.addEventListener("expedientes:updated", window.__ceExpedientesUpdatedHandler);
 
   const CUSTOM_MODAL_SELECTOR = ".ce-custom-modal";
 
@@ -722,6 +817,273 @@ function renderListadoExpedientes(expedientes, mountNode) {
     });
   }
 
+  async function abrirModalSalidaExpediente(expediente) {
+    const trabajador = JSON.parse(localStorage.getItem("trabajador_validado") || "null");
+    const usuarioRegistra = trabajador
+      ? `${trabajador.dni} - ${trabajador.nombres} ${trabajador.apellidos}`
+      : "Sin identificar";
+
+    const { especialistas } = await getCatalogosEdicion();
+
+    const modal = crearModal(`
+      <div class="bg-white rounded-lg shadow-2xl max-w-2xl w-full my-8 p-6 space-y-4">
+        <div class="flex items-center justify-between">
+          <h2 class="text-2xl font-bold text-slate-900">Registrar salida de expediente</h2>
+          <button class="btn-cerrar text-slate-500 hover:text-slate-700 font-bold text-2xl">✕</button>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="md:col-span-2">
+            <label class="block text-xs uppercase tracking-wider font-bold text-slate-600 mb-1">Tipo de salida</label>
+            <select class="salida-tipo w-full border border-slate-300 rounded px-3 py-2 text-sm focus:border-blue-500">
+              <option value="">-- Seleccionar --</option>
+              <option value="PRESTAMO">Préstamo</option>
+              <option value="SALIDA_INTERNA">Salida interna</option>
+              <option value="SALIDA_EXTERNA">Salida externa</option>
+              <option value="ENVIO_DEFINITIVO">Envío definitivo</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs uppercase tracking-wider font-bold text-slate-600 mb-1">Destino</label>
+            <select class="salida-destino w-full border border-slate-300 rounded px-3 py-2 text-sm" disabled>
+              <option value="">Seleccione tipo primero</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs uppercase tracking-wider font-bold text-slate-600 mb-1">Motivo</label>
+            <select class="salida-motivo w-full border border-slate-300 rounded px-3 py-2 text-sm" disabled>
+              <option value="">Seleccione tipo primero</option>
+            </select>
+          </div>
+          <div class="md:col-span-2">
+            <label class="block text-xs uppercase tracking-wider font-bold text-slate-600 mb-1">Responsable de entrega</label>
+            <input class="salida-entrega w-full border border-slate-300 rounded px-3 py-2 text-sm bg-slate-50 text-slate-700" value="${usuarioRegistra}" readonly>
+          </div>
+          <div class="md:col-span-2">
+            <label class="block text-xs uppercase tracking-wider font-bold text-slate-600 mb-1">Responsable de recepción (solo especialista/asistente)</label>
+            <select class="salida-receptor w-full border border-slate-300 rounded px-3 py-2 text-sm" disabled>
+              <option value="">Seleccione destino especialista/asistente</option>
+            </select>
+          </div>
+          <div class="md:col-span-2">
+            <label class="block text-xs uppercase tracking-wider font-bold text-slate-600 mb-1">Observación</label>
+            <textarea class="salida-observacion w-full border border-slate-300 rounded px-3 py-2 text-sm" rows="3" placeholder="Observación opcional"></textarea>
+          </div>
+        </div>
+
+        <div class="flex gap-2 justify-end pt-4 border-t border-slate-200">
+          <button class="btn-cancelar px-4 py-2 rounded border border-slate-300 text-slate-700 hover:bg-slate-50 font-medium">Cancelar</button>
+          <button class="btn-registrar btn btn-primary">Registrar salida</button>
+        </div>
+      </div>
+    `);
+
+    const cerrar = () => cerrarModalActivo();
+    modal.querySelector(".btn-cerrar")?.addEventListener("click", cerrar);
+    modal.querySelector(".btn-cancelar")?.addEventListener("click", cerrar);
+
+    const tipoEl = modal.querySelector(".salida-tipo");
+    const destinoEl = modal.querySelector(".salida-destino");
+    const motivoEl = modal.querySelector(".salida-motivo");
+    const receptorEl = modal.querySelector(".salida-receptor");
+
+    const poblarReceptores = () => {
+      const destino = String(destinoEl?.value || "").trim().toUpperCase();
+      if (!receptorEl) return;
+
+      if (destino !== "ESPECIALISTA" && destino !== "ASISTENTE") {
+        receptorEl.innerHTML = `<option value="">Seleccione destino especialista/asistente</option>`;
+        receptorEl.disabled = true;
+        return;
+      }
+
+      const filtrados = (especialistas || []).filter((item) => {
+        const idRol = String(item.id_rol || "").trim().toUpperCase();
+        const cargo = String(item.cargo || "").trim().toUpperCase();
+        if (destino === "ESPECIALISTA") return idRol === "ROL0005" || cargo.includes("ESPECIALISTA");
+        return idRol === "ROL0006" || cargo.includes("ASISTENTE");
+      });
+
+      const options = filtrados.map((item) => {
+        const nombre = String(item.nombre_completo || [item.nombres, item.apellidos].filter(Boolean).join(" ") || "").trim();
+        const valor = [String(item.id_usuario || "").trim(), nombre].filter(Boolean).join(" - ");
+        return `<option value="${valor}">${nombre}</option>`;
+      }).join("");
+
+      receptorEl.innerHTML = `<option value="">-- Seleccionar receptor --</option>${options}`;
+      receptorEl.disabled = filtrados.length === 0;
+    };
+
+    const poblarSelect = (el, opciones, placeholder) => {
+      el.innerHTML = `<option value="">${placeholder}</option>${opciones
+        .map((opt) => `<option value="${opt}">${_prettyLabel(opt)}</option>`)
+        .join("")}`;
+      el.disabled = opciones.length === 0;
+    };
+
+    tipoEl?.addEventListener("change", () => {
+      const reglas = SALIDA_EXPEDIENTE_RULES[String(tipoEl.value || "").trim()];
+      if (!reglas) {
+        poblarSelect(destinoEl, [], "Seleccione tipo primero");
+        poblarSelect(motivoEl, [], "Seleccione tipo primero");
+        return;
+      }
+      poblarSelect(destinoEl, reglas.destinos, "Seleccione destino");
+      poblarSelect(motivoEl, reglas.motivos, "Seleccione motivo");
+      poblarReceptores();
+    });
+
+    destinoEl?.addEventListener("change", poblarReceptores);
+
+    modal.querySelector(".btn-registrar")?.addEventListener("click", async () => {
+      const tipo = String(tipoEl?.value || "").trim();
+      const destino = String(destinoEl?.value || "").trim();
+      const motivo = String(motivoEl?.value || "").trim();
+      const responsableReceptor = String(receptorEl?.value || "").trim();
+      const observacionLibre = String(modal.querySelector(".salida-observacion")?.value || "").trim();
+
+      if (!tipo || !destino || !motivo) {
+        showToast("Completa tipo, destino y motivo de salida", "warning");
+        return;
+      }
+      if ((destino === "ESPECIALISTA" || destino === "ASISTENTE") && !responsableReceptor) {
+        showToast("Selecciona el nombre del especialista/asistente receptor", "warning");
+        return;
+      }
+
+      const observacionesSalida = [
+        `SALIDA: ${_prettyLabel(tipo)}`,
+        `DESTINO: ${_prettyLabel(destino)}`,
+        `MOTIVO: ${_prettyLabel(motivo)}`,
+        responsableReceptor ? `RECEPTOR: ${responsableReceptor}` : "",
+        observacionLibre
+      ].filter(Boolean).join(" | ");
+
+      const idEstadoDestino = tipo === "ENVIO_DEFINITIVO"
+        ? _resolverIdEstadoDesdeCatalogo(["ENVIADO_A_ARCHIVO", "ARCHIVADO"], expediente.id_estado)
+        : _resolverIdEstadoDesdeCatalogo(["DERIVADO", "PRESTADO", "ASIGNADO"], expediente.id_estado);
+
+      const payload = {
+        id_expediente: String(expediente.id_expediente || "").trim(),
+        codigo_expediente_completo: String(expediente.codigo_expediente_completo || expediente.numero_expediente || "").trim(),
+        id_estado: idEstadoDestino,
+        id_estado_sistema: String(expediente.id_estado_sistema || "").trim(),
+        id_usuario_responsable: String(expediente.id_usuario_responsable || "").trim(),
+        ubicacion_texto: _prettyLabel(destino),
+        observaciones: observacionesSalida,
+        usuario_registra: usuarioRegistra
+      };
+
+      const result = await expedienteService.actualizarEnBackend(payload);
+      if (!result.success) {
+        showToast(result.message || "No se pudo registrar la salida", "error");
+        return;
+      }
+
+      showToast("Salida de expediente registrada", "success");
+      cerrar();
+      await initListadoPage({ mountNode, forceRefresh: true });
+    });
+  }
+
+  async function abrirModalRetornoExpediente(expediente) {
+    const trabajador = JSON.parse(localStorage.getItem("trabajador_validado") || "null");
+    const usuarioRegistra = trabajador
+      ? `${trabajador.dni} - ${trabajador.nombres} ${trabajador.apellidos}`
+      : "Sin identificar";
+
+    const modal = crearModal(`
+      <div class="bg-white rounded-lg shadow-2xl max-w-2xl w-full my-8 p-6 space-y-4">
+        <div class="flex items-center justify-between">
+          <h2 class="text-2xl font-bold text-slate-900">Registrar retorno de expediente</h2>
+          <button class="btn-cerrar text-slate-500 hover:text-slate-700 font-bold text-2xl">✕</button>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs uppercase tracking-wider font-bold text-slate-600 mb-1">Motivo de retorno</label>
+            <select class="retorno-motivo w-full border border-slate-300 rounded px-3 py-2 text-sm">
+              <option value="">-- Seleccionar --</option>
+              <option value="DEVOLUCION_PRESTAMO">Devolución de préstamo</option>
+              <option value="CULMINO_REVISION">Culminó revisión</option>
+              <option value="RETORNO_DESDE_AUDIENCIA">Retorno desde audiencia</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs uppercase tracking-wider font-bold text-slate-600 mb-1">Condición de retorno</label>
+            <select class="retorno-condicion w-full border border-slate-300 rounded px-3 py-2 text-sm">
+              <option value="">-- Seleccionar --</option>
+              <option value="CONFORME">Conforme</option>
+              <option value="CON_OBSERVACION">Con observación</option>
+            </select>
+          </div>
+          <div class="md:col-span-2">
+            <label class="block text-xs uppercase tracking-wider font-bold text-slate-600 mb-1">Responsable de recepción</label>
+            <input class="retorno-recepcion w-full border border-slate-300 rounded px-3 py-2 text-sm bg-slate-50 text-slate-700" value="${usuarioRegistra}" readonly>
+          </div>
+          <div class="md:col-span-2">
+            <label class="block text-xs uppercase tracking-wider font-bold text-slate-600 mb-1">Observación del retorno</label>
+            <textarea class="retorno-observacion w-full border border-slate-300 rounded px-3 py-2 text-sm" rows="3" placeholder="Detalle del retorno (obligatorio si selecciona Con observación)"></textarea>
+          </div>
+        </div>
+
+        <div class="flex gap-2 justify-end pt-4 border-t border-slate-200">
+          <button class="btn-cancelar px-4 py-2 rounded border border-slate-300 text-slate-700 hover:bg-slate-50 font-medium">Cancelar</button>
+          <button class="btn-registrar btn btn-primary">Registrar retorno</button>
+        </div>
+      </div>
+    `);
+
+    const cerrar = () => cerrarModalActivo();
+    modal.querySelector(".btn-cerrar")?.addEventListener("click", cerrar);
+    modal.querySelector(".btn-cancelar")?.addEventListener("click", cerrar);
+
+    modal.querySelector(".btn-registrar")?.addEventListener("click", async () => {
+      const motivo = String(modal.querySelector(".retorno-motivo")?.value || "").trim();
+      const condicion = String(modal.querySelector(".retorno-condicion")?.value || "").trim();
+      const observacion = String(modal.querySelector(".retorno-observacion")?.value || "").trim();
+
+      if (!motivo || !condicion) {
+        showToast("Completa motivo y condición del retorno", "warning");
+        return;
+      }
+      if (condicion === "CON_OBSERVACION" && !observacion) {
+        showToast("Detalla la observación del retorno", "warning");
+        return;
+      }
+
+      const idEstadoRetorno = _resolverIdEstadoDesdeCatalogo(
+        ["RETORNADO", "REGISTRADO", "EN_ARCHIVO_GENERAL"],
+        expediente.id_estado
+      );
+
+      const observacionesRetorno = [
+        `RETORNO: ${_prettyLabel(motivo)}`,
+        `CONDICION: ${_prettyLabel(condicion)}`,
+        observacion
+      ].filter(Boolean).join(" | ");
+
+      const payload = {
+        id_expediente: String(expediente.id_expediente || "").trim(),
+        codigo_expediente_completo: String(expediente.codigo_expediente_completo || expediente.numero_expediente || "").trim(),
+        id_estado: idEstadoRetorno,
+        ubicacion_texto: "ARCHIVO_MODULAR",
+        observaciones: observacionesRetorno,
+        usuario_registra: usuarioRegistra
+      };
+
+      const result = await expedienteService.actualizarEnBackend(payload);
+      if (!result.success) {
+        showToast(result.message || "No se pudo registrar el retorno", "error");
+        return;
+      }
+
+      showToast("Retorno de expediente registrado", "success");
+      cerrar();
+      await initListadoPage({ mountNode, forceRefresh: true });
+    });
+  }
+
   /**
    * Configurar event listeners
    */
@@ -766,6 +1128,23 @@ function renderListadoExpedientes(expedientes, mountNode) {
         } else {
           showToast("❌ Expediente no encontrado", "error");
         }
+      });
+    });
+
+    document.querySelectorAll(".btn-movimiento-exp").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const numero = btn.getAttribute("data-numero");
+        const accion = String(btn.getAttribute("data-accion") || "salida").trim().toLowerCase();
+        const expediente = expedientes.find(e => e.numero_expediente === numero);
+        if (!expediente) {
+          showToast("❌ Expediente no encontrado", "error");
+          return;
+        }
+        if (accion === "retorno") {
+          abrirModalRetornoExpediente(expediente);
+          return;
+        }
+        abrirModalSalidaExpediente(expediente);
       });
     });
 
