@@ -92,8 +92,8 @@ function abrirModalListadoRegistros(registros = []) {
         </div>
         <div class="grid gap-2 md:grid-cols-[1fr_auto] md:items-end">
           <div>
-            <label for="filtro-numero-expediente" class="text-xs font-semibold text-slate-600 uppercase tracking-wide">Filtrar por numero de expediente</label>
-            <input id="filtro-numero-expediente" class="input-base w-full" placeholder="Ej: 00012-2026-1-3101-CI-01" />
+            <label for="filtro-busqueda-expte" class="text-xs font-semibold text-slate-600 uppercase tracking-wide">Filtrar por numero de expediente</label>
+            <input id="filtro-busqueda-expte" class="input-base w-full" placeholder="Ej: 00012-2026-1-3101-CI-01" />
           </div>
           <div class="flex gap-2">
             <button id="btn-filtrar-numero-expediente" class="btn btn-primary inline-flex items-center gap-2">${icon("busqueda", "w-4 h-4")}<span>Filtrar</span></button>
@@ -108,7 +108,7 @@ function abrirModalListadoRegistros(registros = []) {
 
   const tablaContainer = document.getElementById("tabla-registros-modal");
   const totalEl = document.getElementById("total-registros-modal");
-  const inputFiltro = document.getElementById("filtro-numero-expediente");
+  const inputFiltro = document.getElementById("filtro-busqueda-expte");
   const btnFiltrar = document.getElementById("btn-filtrar-numero-expediente");
   const btnLimpiar = document.getElementById("btn-limpiar-filtro-expediente");
 
@@ -884,7 +884,11 @@ form.numeroJuzgado.style.display = "none";
     // Botón Editar - Abrir modal para editar TODO
     document.getElementById("btn-editar-lectora")?.addEventListener("click", () => {
       // Obtener valores actuales
-      const numeroExpediente = form.numeroExpediente?.value || "";
+      // Preferir el número formateado del resumen (ej: 00469-2021-0-3101-JR-CI-02)
+      // y no el código crudo de la lectora que está en el input visible
+      const numeroExpediente =
+        document.getElementById("resumen-expediente-completo")?.textContent?.trim() ||
+        form.numeroExpediente?.value || "";
       const juzgadoActual = form.juzgado?.value || "";
       const paqueteId = form.paqueteId?.value || "";
       const ubicacionActual = form.ubicacionActual?.value || "Estante";
@@ -904,7 +908,7 @@ form.numeroJuzgado.style.display = "none";
             <!-- Número de expediente EDITABLE -->
             <div>
               <label class="text-xs font-bold text-slate-700 uppercase block mb-1">Número de Expediente</label>
-              <input type="text" id="modal-numero-expediente" value="${numeroExpediente}" 
+              <input type="text" id="modal-codigo-expte" value="${numeroExpediente}" 
                 class="w-full border-2 border-slate-300 rounded px-3 py-2 text-sm font-mono focus:border-blue-500 focus:outline-none"
                 placeholder="00461-2024-0-3101-CI-02" />
               <p class="text-xs text-slate-600 mt-1">Formato: NUMERO-AÑO-INCIDENTE-CORTE-MATERIA-DETERMINADOR</p>
@@ -958,7 +962,7 @@ form.numeroJuzgado.style.display = "none";
         `,
         confirmText: "Guardar cambios",
         onConfirm: (close) => {
-          const nuevoNumero = document.getElementById("modal-numero-expediente")?.value || numeroExpediente;
+          const nuevoNumero = document.getElementById("modal-codigo-expte")?.value || numeroExpediente;
           const selectJuzgado = document.getElementById("modal-juzgado");
 const nuevoJuzgadoId = selectJuzgado?.value || "";
 const nuevoJuzgadoTexto = selectJuzgado?.selectedOptions?.[0]?.dataset?.nombre || juzgadoActual;
@@ -977,7 +981,19 @@ const nuevoJuzgadoTexto = selectJuzgado?.selectedOptions?.[0]?.dataset?.nombre |
           }
           
           // Guardar cambios en el formulario
-          form.numeroExpediente.value = nuevoNumero;
+          // El input visible de la lectora tiene data-only-numbers y pattern=[0-9]*,
+          // por lo que no puede contener guiones. En su lugar lo deshabilitamos y
+          // usamos un hidden con el mismo name para que FormData tome el numero formateado.
+          form.numeroExpediente.disabled = true;
+          let hiddenNumero = form.querySelector("input[type='hidden'][data-numero-formateado='true']");
+          if (!hiddenNumero) {
+            hiddenNumero = document.createElement("input");
+            hiddenNumero.type = "hidden";
+            hiddenNumero.name = "numeroExpediente";
+            hiddenNumero.dataset.numeroFormateado = "true";
+            form.appendChild(hiddenNumero);
+          }
+          hiddenNumero.value = nuevoNumero;
           form.juzgado.value = nuevoJuzgadoTexto;
 document.getElementById("input-juzgado").value = nuevoJuzgadoTexto;
 let hiddenIdJuzgado = form.querySelector("input[name='id_juzgado']");
@@ -1008,7 +1024,9 @@ hiddenIdJuzgado.value = nuevoJuzgadoId;
 
     form?.addEventListener("submit", async (event) => {
       event.preventDefault();
-      if (form.numeroExpediente.value.trim()) {
+      const hiddenNum = form.querySelector("input[type='hidden'][data-numero-formateado='true']");
+      const numeroActual = (hiddenNum?.value || form.numeroExpediente?.value || "").trim();
+      if (numeroActual) {
         await guardarConConfirmacion(form, mountNode, true);
       }
     });
