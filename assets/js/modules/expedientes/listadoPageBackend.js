@@ -48,6 +48,13 @@ function _prettyLabel(value) {
     .join(" ");
 }
 
+function _normalizarCodigoExpediente(valor) {
+  return String(valor || "")
+    .trim()
+    .replace(/^[@']+/, "")
+    .trim();
+}
+
 function _normalizarEstadoClave(valor) {
   return String(valor || "")
     .normalize("NFD")
@@ -568,20 +575,10 @@ function renderListadoExpedientes(expedientes, mountNode) {
    */
   async function abrirModalEditar(expediente) {
     const formateado = formatearExpediente(expediente);
-    const { estados, estadosSistema, especialistas } = await getCatalogosEdicion();
 
-    // --- Generar opciones ---
-    const optionsEstados = estados.map(e =>
-      `<option value="${e.id_estado}" ${String(e.id_estado) === String(expediente.id_estado) ? 'selected' : ''}>${e.nombre_estado}</option>`
-    ).join('');
-
-    const optionsEstadosSistema = estadosSistema.map(es =>
-      `<option value="${es.id_estado_sistema}" ${String(es.id_estado_sistema) === String(expediente.id_estado_sistema) ? 'selected' : ''}>${es.nombre_estado_sistema}</option>`
-    ).join('');
-
-    const optionsEspecialistas = especialistas.map(esp =>
-      `<option value="${esp.id_usuario}" ${String(esp.id_usuario) === String(expediente.id_usuario_responsable) ? 'selected' : ''}>${esp.nombre_completo}</option>`
-    ).join('');
+    // Mostrar modal de inmediato y cargar catálogos/seguimiento en background.
+    const idEstadoSistemaSeleccionado = String(expediente.id_estado_sistema || "").trim();
+    const idEspecialistaSeleccionado = String(expediente.id_usuario_responsable || "").trim();
 
     const modal = crearModal(`
       <div class="bg-white rounded-lg shadow-2xl max-w-3xl w-full my-8 p-6 space-y-4">
@@ -622,8 +619,7 @@ function renderListadoExpedientes(expedientes, mountNode) {
             <div>
               <label class="block text-xs uppercase tracking-wider font-bold text-green-700 mb-2">Estado del Expediente</label>
               <select class="edit-estado w-full px-3 py-2 border-2 border-green-300 rounded focus:border-green-500 focus:ring-2 focus:ring-green-200 bg-green-50">
-                <option value="">-- Seleccionar Estado --</option>
-                ${optionsEstados}
+                <option value="">Cargando estados...</option>
               </select>
             </div>
 
@@ -631,8 +627,7 @@ function renderListadoExpedientes(expedientes, mountNode) {
             <div>
               <label class="block text-xs uppercase tracking-wider font-bold text-indigo-700 mb-2">Estado del Sistema</label>
               <select class="edit-estado-sistema w-full px-3 py-2 border-2 border-indigo-300 rounded focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 bg-indigo-50">
-                <option value="">-- Seleccionar Estado --</option>
-                ${optionsEstadosSistema}
+                <option value="">Cargando estados del sistema...</option>
               </select>
             </div>
 
@@ -647,8 +642,7 @@ function renderListadoExpedientes(expedientes, mountNode) {
             <div>
               <label class="block text-xs uppercase tracking-wider font-bold text-purple-700 mb-2">Especialista Asignado</label>
               <select class="edit-especialista w-full px-3 py-2 border-2 border-purple-300 rounded focus:border-purple-500 focus:ring-2 focus:ring-purple-200 bg-purple-50">
-                <option value="">-- Seleccionar Especialista --</option>
-                ${optionsEspecialistas}
+                <option value="">Cargando especialistas...</option>
               </select>
             </div>
           </div>
@@ -676,6 +670,115 @@ function renderListadoExpedientes(expedientes, mountNode) {
 
     modal.querySelector(".btn-cerrar").addEventListener("click", cerrarModalActivo);
     modal.querySelector(".btn-cancelar").addEventListener("click", cerrarModalActivo);
+
+    const cargarCatalogosYValoresIniciales = async () => {
+      try {
+        const resolverValoresSeguimiento = async () => {
+          try {
+            let idExpediente = String(expediente.id_expediente || "").trim();
+
+            if (!idExpediente) {
+              const codigoExpediente = _normalizarCodigoExpediente(String(
+                expediente.codigo_expediente_completo || expediente.numero_expediente || ""
+              ));
+              if (!codigoExpediente) {
+                return {
+                  idEstadoSistema: idEstadoSistemaSeleccionado,
+                  idEspecialista: idEspecialistaSeleccionado
+                };
+              }
+
+              const expedienteBackend = await expedienteService.obtenerDelBackendPorCodigo(codigoExpediente);
+              idExpediente = String(expedienteBackend?.data?.id_expediente || "").trim();
+            }
+
+            if (!idExpediente) {
+              return {
+                idEstadoSistema: idEstadoSistemaSeleccionado,
+                idEspecialista: idEspecialistaSeleccionado
+              };
+            }
+
+            const ultimoSeguimiento = await expedienteService.obtenerUltimoSeguimiento(idExpediente);
+            if (!ultimoSeguimiento.success || !ultimoSeguimiento.data) {
+              return {
+                idEstadoSistema: idEstadoSistemaSeleccionado,
+                idEspecialista: idEspecialistaSeleccionado
+              };
+            }
+
+            return {
+              idEstadoSistema: String(ultimoSeguimiento.data.id_estado_sistema || idEstadoSistemaSeleccionado || "").trim(),
+              idEspecialista: String(ultimoSeguimiento.data.id_usuario_responsable || idEspecialistaSeleccionado || "").trim()
+            };
+          } catch {
+            return {
+              idEstadoSistema: idEstadoSistemaSeleccionado,
+              idEspecialista: idEspecialistaSeleccionado
+            };
+          }
+        };
+
+        const [catalogos, valoresSeguimiento] = await Promise.all([
+          getCatalogosEdicion(),
+          resolverValoresSeguimiento()
+        ]);
+
+        const { estados, estadosSistema, especialistas } = catalogos;
+        const idEstadoSistemaFinal = String(valoresSeguimiento.idEstadoSistema || "").trim();
+        const idEspecialistaFinal = String(valoresSeguimiento.idEspecialista || "").trim();
+
+        const selectEstado = modal.querySelector(".edit-estado");
+        const selectEstadoSistema = modal.querySelector(".edit-estado-sistema");
+        const selectEspecialista = modal.querySelector(".edit-especialista");
+
+        if (!selectEstado || !selectEstadoSistema || !selectEspecialista) return;
+
+        const optionsEstados = estados.map(e =>
+          `<option value="${e.id_estado}" ${String(e.id_estado) === String(expediente.id_estado) ? 'selected' : ''}>${e.nombre_estado}</option>`
+        ).join("");
+
+        const optionsEstadosSistema = estadosSistema.map(es =>
+          `<option value="${es.id_estado_sistema}" ${String(es.id_estado_sistema) === idEstadoSistemaFinal ? 'selected' : ''}>${es.nombre_estado_sistema}</option>`
+        ).join("");
+
+        const especialistasFiltrados = (especialistas || []).filter(esp => {
+          const idRol = String(esp.id_rol || "").trim().toUpperCase();
+          const cargo = String(esp.cargo || "").trim().toUpperCase();
+          return idRol === "ROL0005" || cargo.includes("ESPECIALISTA");
+        });
+
+        const optionsEspecialistas = especialistasFiltrados.map(esp =>
+          `<option value="${esp.id_usuario}" ${String(esp.id_usuario) === idEspecialistaFinal ? 'selected' : ''}>${esp.nombre_completo}</option>`
+        ).join("");
+
+        selectEstado.innerHTML = `<option value="">-- Seleccionar Estado --</option>${optionsEstados}`;
+        selectEstadoSistema.innerHTML = `<option value="">-- Seleccionar Estado --</option>${optionsEstadosSistema}`;
+        selectEspecialista.innerHTML = `<option value="">-- Seleccionar Especialista --</option>${optionsEspecialistas}`;
+
+        if (idEstadoSistemaFinal) {
+          const existeEstado = Array.from(selectEstadoSistema.options).some((opt) => String(opt.value) === idEstadoSistemaFinal);
+          if (existeEstado) selectEstadoSistema.value = idEstadoSistemaFinal;
+        }
+
+        if (idEspecialistaFinal) {
+          const existeEspecialista = Array.from(selectEspecialista.options).some((opt) => String(opt.value) === idEspecialistaFinal);
+          if (existeEspecialista) selectEspecialista.value = idEspecialistaFinal;
+        }
+      } catch (error) {
+        const selectEstado = modal.querySelector(".edit-estado");
+        const selectEstadoSistema = modal.querySelector(".edit-estado-sistema");
+        const selectEspecialista = modal.querySelector(".edit-especialista");
+
+        if (selectEstado) selectEstado.innerHTML = `<option value="">-- Seleccionar Estado --</option>`;
+        if (selectEstadoSistema) selectEstadoSistema.innerHTML = `<option value="">-- Seleccionar Estado --</option>`;
+        if (selectEspecialista) selectEspecialista.innerHTML = `<option value="">-- Seleccionar Especialista --</option>`;
+
+        console.warn("⚠️ No se pudieron cargar catálogos/seguimiento en modal editar:", error?.message || error);
+      }
+    };
+
+    cargarCatalogosYValoresIniciales();
     
     modal.querySelector(".btn-guardar").addEventListener("click", async () => {
       const idEstado = modal.querySelector(".edit-estado").value.trim();
@@ -705,9 +808,9 @@ function renderListadoExpedientes(expedientes, mountNode) {
           // Compatible con actualizarExpediente(data) del backend
           const datosActualizacion = {
             id_expediente: String(expediente.id_expediente || "").trim(),
-            codigo_expediente_completo: String(
+            codigo_expediente_completo: _normalizarCodigoExpediente(String(
               expediente.codigo_expediente_completo || expediente.numero_expediente || ""
-            ).trim(),
+            )),
             id_estado: idEstado,
             id_estado_sistema: idEstadoSistema,
             id_usuario_responsable: idEspecialista,
@@ -1240,7 +1343,7 @@ function renderListadoExpedientes(expedientes, mountNode) {
       setupEventListeners();
     });
   }
-
   mountNode.innerHTML = renderHTML();
   setupEventListeners();
-}
+}  // ← CIERRE de renderListadoExpedientes
+

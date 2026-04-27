@@ -289,6 +289,33 @@ export const expedienteService = {
   },
 
   /**
+   * Obtener el ultimo seguimiento de un expediente por id_expediente
+   */
+  async obtenerUltimoSeguimiento(idExpediente) {
+    try {
+      const id = String(idExpediente || "").trim();
+      if (!id) {
+        return { success: false, message: "id_expediente requerido", data: null };
+      }
+
+      const url = `${appConfig.googleSheetURL}?action=obtener_ultimo_seguimiento&id_expediente=${encodeURIComponent(id)}`;
+      const response = await fetch(url);
+
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+
+      const resultado = await response.json();
+      if (resultado.success) {
+        return { success: true, data: resultado.data || null, message: resultado.message || "" };
+      }
+
+      return { success: false, message: resultado.error || "No se pudo obtener el ultimo seguimiento", data: null };
+    } catch (error) {
+      console.error("Error obteniendo ultimo seguimiento:", error);
+      return { success: false, message: error.message, data: null };
+    }
+  },
+
+  /**
    * Actualizar expediente en el backend
    */
   async actualizarEnBackend(data) {
