@@ -76,6 +76,9 @@ function aplicarSoloNumerosGlobales() {
   const esSoloNumeros = (el) => {
     if (!el || !el.tagName || String(el.tagName).toUpperCase() !== "INPUT") return false;
 
+    // Permite excepciones puntuales para campos que manejan formato con guiones.
+    if (el.dataset && el.dataset.allowFormattedExpediente === "true") return false;
+
     if (el.dataset && el.dataset.onlyNumbers === "true") return true;
 
     const tipo = String(el.type || "text").toLowerCase();

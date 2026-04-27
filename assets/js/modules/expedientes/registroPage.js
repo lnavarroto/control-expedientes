@@ -177,7 +177,9 @@ function parseForm(form) {
     ? data.juzgadoManual.trim()
     : data.juzgado;
 
-  let numeroExpediente = data.numeroExpediente?.trim().toUpperCase() || "";
+  let numeroExpediente = data.numeroExpedienteFormateado?.trim().toUpperCase()
+    || data.numeroExpediente?.trim().toUpperCase()
+    || "";
 
  if (numeroExpediente && !numeroExpediente.includes("-")) {
   const numero = (data.numeroExpediente || "").padStart(5, "0");
@@ -642,6 +644,9 @@ export function initRegistroPage({ mountNode }) {
     if (!form) return;
 
     const numeroInput = document.getElementById("numero-expediente-lectora");
+    if (numeroInput?.dataset) {
+      numeroInput.dataset.allowFormattedExpediente = "true";
+    }
     const resumenBox = document.getElementById("resumen-lectora");
     const chipBox = document.getElementById("estado-chip-lectora");
     const btnGuardar = document.getElementById("btn-guardar-lectora");
@@ -779,6 +784,15 @@ document.getElementById("input-codigo-corte").value = parsed.codigoCorte;
 document.getElementById("input-materia").value = parsed.materia;
 document.getElementById("input-codigo-lectura-raw").value = parsed.codigoLecturaRaw || "";
 
+let hiddenNumeroFormateado = form.querySelector("input[name='numeroExpedienteFormateado']");
+if (!hiddenNumeroFormateado) {
+  hiddenNumeroFormateado = document.createElement("input");
+  hiddenNumeroFormateado.type = "hidden";
+  hiddenNumeroFormateado.name = "numeroExpedienteFormateado";
+  form.appendChild(hiddenNumeroFormateado);
+}
+hiddenNumeroFormateado.value = parsed.numeroExpediente;
+
 // Guardar juzgado detectado
 document.getElementById("input-juzgado").value = juzgadoNombre;
 form.juzgado.value = juzgadoNombre;
@@ -836,6 +850,22 @@ form.numeroJuzgado.style.display = "none";
 
     // Event listeners
     numeroInput.addEventListener("input", (e) => {
+      const valorActual = String(e.target.value || "").trim().toUpperCase();
+
+      // Si el usuario tiene un número ya formateado, no lo convertir a código crudo.
+      if (valorActual.includes("-")) {
+        if (validarNumeroExpediente(valorActual)) {
+          actualizarChipLectora("valido");
+          btnGuardar.disabled = false;
+          numeroInput.dataset.listoParaEnviar = "true";
+        } else {
+          actualizarChipLectora("pendiente", "Formato con guiones incompleto");
+          btnGuardar.disabled = true;
+          numeroInput.dataset.listoParaEnviar = "false";
+        }
+        return;
+      }
+
       // Limpiar caracteres no numéricos y limitar a 30 primeros dígitos
       // (para capturar códigos que vienen con información extra)
       const soloNumeros = e.target.value.replace(/[^\d]/g, "");
@@ -874,6 +904,8 @@ form.numeroJuzgado.style.display = "none";
       numeroInput.value = "";
       numeroInput.dataset.listoParaEnviar = "false";
       document.getElementById("input-codigo-lectura-raw").value = "";
+      const hiddenNumeroFormateado = form.querySelector("input[name='numeroExpedienteFormateado']");
+      if (hiddenNumeroFormateado) hiddenNumeroFormateado.value = "";
       resumenBox.classList.add("hidden");
       actualizarChipLectora("pendiente");
       btnGuardar.disabled = true;
@@ -979,21 +1011,24 @@ const nuevoJuzgadoTexto = selectJuzgado?.selectedOptions?.[0]?.dataset?.nombre |
             showToast("⚠️ El número de expediente no puede estar vacío", "warning");
             return;
           }
+
+          const numeroEditado = String(nuevoNumero).trim().toUpperCase();
           
           // Guardar cambios en el formulario
-          // El input visible de la lectora tiene data-only-numbers y pattern=[0-9]*,
-          // por lo que no puede contener guiones. En su lugar lo deshabilitamos y
-          // usamos un hidden con el mismo name para que FormData tome el numero formateado.
-          form.numeroExpediente.disabled = true;
-          let hiddenNumero = form.querySelector("input[type='hidden'][data-numero-formateado='true']");
-          if (!hiddenNumero) {
-            hiddenNumero = document.createElement("input");
-            hiddenNumero.type = "hidden";
-            hiddenNumero.name = "numeroExpediente";
-            hiddenNumero.dataset.numeroFormateado = "true";
-            form.appendChild(hiddenNumero);
+          // El input visible de la lectora mantiene el código crudo (numérico).
+          // Guardamos el número formateado en un hidden para el guardado final.
+          let hiddenNumeroFormateado = form.querySelector("input[name='numeroExpedienteFormateado']");
+          if (!hiddenNumeroFormateado) {
+            hiddenNumeroFormateado = document.createElement("input");
+            hiddenNumeroFormateado.type = "hidden";
+            hiddenNumeroFormateado.name = "numeroExpedienteFormateado";
+            form.appendChild(hiddenNumeroFormateado);
           }
-          hiddenNumero.value = nuevoNumero;
+          hiddenNumeroFormateado.value = numeroEditado;
+
+          // Reflejar inmediatamente en el campo visible principal.
+          form.numeroExpediente.value = numeroEditado;
+          numeroInput.dataset.listoParaEnviar = "true";
           form.juzgado.value = nuevoJuzgadoTexto;
 document.getElementById("input-juzgado").value = nuevoJuzgadoTexto;
 let hiddenIdJuzgado = form.querySelector("input[name='id_juzgado']");
@@ -1010,7 +1045,7 @@ hiddenIdJuzgado.value = nuevoJuzgadoId;
           form.estado.value = nuevoEstado;
           
           // Actualizar resumen
-          document.getElementById("resumen-expediente-completo").textContent = nuevoNumero;
+          document.getElementById("resumen-expediente-completo").textContent = numeroEditado;
           document.getElementById("resumen-juzgado").textContent = nuevoJuzgadoTexto;
           document.getElementById("resumen-paquete").textContent = nuevoPaquete || "---";
           document.getElementById("resumen-ubicacion").textContent = nuevaUbicacion;
@@ -1024,7 +1059,7 @@ hiddenIdJuzgado.value = nuevoJuzgadoId;
 
     form?.addEventListener("submit", async (event) => {
       event.preventDefault();
-      const hiddenNum = form.querySelector("input[type='hidden'][data-numero-formateado='true']");
+      const hiddenNum = form.querySelector("input[name='numeroExpedienteFormateado']");
       const numeroActual = (hiddenNum?.value || form.numeroExpediente?.value || "").trim();
       if (numeroActual) {
         await guardarConConfirmacion(form, mountNode, true);
