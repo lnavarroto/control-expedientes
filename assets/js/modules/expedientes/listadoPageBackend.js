@@ -506,7 +506,23 @@ export async function initListadoPage({ mountNode, forceRefresh = false }) {
  * Renderizar página de listado con expedientes
  */
 function renderListadoExpedientes(expedientes, mountNode) {
-  let expedientesFiltrados = [...expedientes];
+  const expedientesIndexados = (expedientes || []).map((exp) => {
+    const textoBusqueda = [
+      exp.codigo_expediente_completo,
+      exp.numero_expediente,
+      exp.juzgado_texto,
+      exp.registrado_por,
+      exp.observaciones,
+      exp.ubicacion_texto
+    ].filter(Boolean).join(" ").toLowerCase();
+
+    return {
+      ...exp,
+      _textoBusqueda: textoBusqueda
+    };
+  });
+
+  let expedientesFiltrados = [...expedientesIndexados];
   let paginaActual = 1;
   const itemsPorPagina = 10;
   let filtrosActivos = {
@@ -1202,11 +1218,11 @@ function renderListadoExpedientes(expedientes, mountNode) {
       filtrosActivos = obtenerFiltrosUI();
       const filtroTexto = (filtrosActivos.texto || "").toLowerCase();
 
-      expedientesFiltrados = expedientes.filter(exp => {
+      expedientesFiltrados = expedientesIndexados.filter(exp => {
         const cumpleMateria = !filtrosActivos.materia || exp.codigo_materia === filtrosActivos.materia;
         const cumpleJuzgado = !filtrosActivos.juzgado || exp.juzgado_texto === filtrosActivos.juzgado || exp.id_juzgado == filtrosActivos.juzgado;
         const cumpleEstado = !filtrosActivos.estado || exp.id_estado == filtrosActivos.estado;
-        const cumpleTexto = !filtroTexto || JSON.stringify(exp).toLowerCase().includes(filtroTexto);
+        const cumpleTexto = !filtroTexto || String(exp._textoBusqueda || "").includes(filtroTexto);
 
         return cumpleMateria && cumpleJuzgado && cumpleEstado && cumpleTexto;
       });
@@ -1336,7 +1352,7 @@ function renderListadoExpedientes(expedientes, mountNode) {
         estado: "",
         texto: ""
       };
-      expedientesFiltrados = [...expedientes];
+      expedientesFiltrados = [...expedientesIndexados];
       paginaActual = 1;
       showToast("🧹 Filtros limpios", "info");
       mountNode.innerHTML = renderHTML();

@@ -24,12 +24,19 @@ function filaRegistro(item = {}) {
     ? `${fecha} ${hora}`
     : (item.fecha_hora_ingreso || formatoFechaHora(item.fechaIngreso, item.horaIngreso) || "-");
 
+  const idEstado = String(item.id_estado || item.estado || "").trim();
+  const estadoTexto = String(item.nombre_estado || "").trim();
+  const estadoCatalogo = idEstado
+    ? (estadoService.listarSync() || []).find((e) => String(e.id || e.id_estado || "").trim() === idEstado)
+    : null;
+  const estado = estadoTexto || estadoCatalogo?.nombre_estado || estadoCatalogo?.nombre || idEstado || "-";
+
   return {
     id: item.id_expediente || item.id || "-",
     numero,
     juzgado: item.juzgado_texto || item.juzgado || "-",
     ingreso,
-    estado: item.id_estado || item.estado || "-",
+    estado,
     usuario: item.registrado_por || "-"
   };
 }
