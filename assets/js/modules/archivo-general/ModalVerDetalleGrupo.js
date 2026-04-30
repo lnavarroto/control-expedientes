@@ -70,26 +70,21 @@ export async function abrirModalVerDetalleGrupo(id_grupo, onSuccess) {
     return materiaNombrePorId.get(idMateria) || idMateria || "-";
   };
 
-  const response = await archivoGeneralService.obtenerGrupoConDetalle(id_grupo);
-  if (!response.success) {
-    showToast("Error cargando detalle del grupo", "error");
-    return;
-  }
+// ⚡ Cargar EN PARALELO
+const [grupoResp, salidasResp] = await Promise.all([
+  archivoGeneralService.obtenerGrupoConDetalle(id_grupo),
+  archivoGeneralService.listarSalidasGrupo(id_grupo)
+]);
 
-  const grupo = response.data || {};
-  const expedientes = grupo.expedientes || [];
-  
-  // Asegurar que salidas siempre es un array
-  let salidas = grupo.salidas || [];
-  if (!Array.isArray(salidas)) salidas = [];
-  
-  // Si no hay salidas en grupo, intentar obtenerlas directamente
-  if (salidas.length === 0) {
-    const salidasResp = await archivoGeneralService.listarSalidasGrupo(id_grupo);
-    if (salidasResp.success && Array.isArray(salidasResp.data)) {
-      salidas = salidasResp.data;
-    }
-  }
+if (!grupoResp.success) {
+  showToast("Error cargando detalle del grupo", "error");
+  return;
+}
+
+const grupo = grupoResp.data || {};
+const expedientes = grupo.expedientes || [];
+let salidas = salidasResp.success ? salidasResp.data : [];
+if (!Array.isArray(salidas)) salidas = [];
 
   const estadoBadge = CARD_TONES[grupo.estado_grupo] || CARD_TONES.ACTIVO;
 

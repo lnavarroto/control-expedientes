@@ -14,8 +14,10 @@ import { initUbicacionesPage } from "./modules/ubicaciones/ubicacionesPage.js";
 import { initPaquetesPage } from "./modules/paquetes/paquetesPage.js";
 import { renderPaquetesGeneralView } from "./modules/paquetesGeneral/paquetesGeneralView.js";
 import { initMovimientosPage } from "./modules/movimientos/movimientosPage.js";
+import { initMovimientosModularPage } from "./modules/movimientos/movimientosModularPage.js";
 import { initActualizacionPage } from "./modules/actualizacion/actualizacionPage.js";
 import { initConfiguacionPage } from "./modules/configuracion/configuracionPage.js";
+import { initSalidasArchivoPage } from "./modules/movimientos/salidasArchivoPage.js";
 import { addIconsToButtons } from "./utils/buttonIcons.js";
 
 const ROUTES = {
@@ -26,8 +28,9 @@ const ROUTES = {
   ubicaciones: { title: "Gestión de Ubicaciones", init: initUbicacionesPage },
   "paquetes-general": { title: "Paquetes para Archivo General", init: renderPaquetesGeneralView },
   "paquetes-modular": { title: "Paquetes para Archivo Modular", init: initPaquetesPage },
-  "movimientos-modular": { title: "Historial de Movimientos", init: initMovimientosPage },
-  movimientos: { title: "Movimientos Activos", init: initMovimientosPage },
+  "movimientos-modular": { title: "Historial de Movimientos", init: initMovimientosModularPage },
+  movimientos: { title: "Historial de actualización de datos", init: initMovimientosPage },
+   "salidas-archivo": { title: "Salidas de Archivo General", init: initSalidasArchivoPage },
   actualizacion: { title: "Actualización de Datos", init: initActualizacionPage },
   configuracion: { title: "Configuración del Sistema", init: initConfiguacionPage },
   "archivo-general": { title: "Paquetes para Archivo General", init: renderPaquetesGeneralView }

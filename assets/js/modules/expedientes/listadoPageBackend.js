@@ -23,11 +23,11 @@ import { ALERT_TONES, CARD_TONES } from "../../core/uiTokens.js";
 const SALIDA_EXPEDIENTE_RULES = {
   PRESTAMO: {
     destinos: ["JUZGADO", "JUEZ", "ESPECIALISTA", "ASISTENTE", "AREA_USUARIA", "SALA_AUDIENCIA"],
-    motivos: ["LECTURA_EXPEDIENTE", "CONSULTA", "REVISION_INTERNA", "AUDIENCIA", "APOYO_ORDENAMIENTO"]
+    motivos: ["LECTURA_EXPEDIENTE", "CONSULTA", "REVISION_INTERNA", "AUDIENCIA", "APOYO_ORDENAMIENTO","ELEVACION_A_INSTANCIA_SUPERIOR"]
   },
   SALIDA_INTERNA: {
     destinos: ["JUZGADO", "JUEZ", "ESPECIALISTA", "ASISTENTE", "AREA_DIGITALIZACION", "SALA_AUDIENCIA"],
-    motivos: ["REVISION_INTERNA", "DIGITALIZACION", "AUDIENCIA", "ORDENAMIENTO", "APOYO_ORDENAMIENTO"]
+    motivos: ["REVISION_INTERNA", "DIGITALIZACION", "AUDIENCIA", "ORDENAMIENTO", "APOYO_ORDENAMIENTO", "ELEVACION_A_INSTANCIA_SUPERIOR" ]
   },
   SALIDA_EXTERNA: {
     destinos: ["OTRO_JUZGADO", "ENTIDAD_EXTERNA", "MESA_PARTES", "FISCALIA", "PROCURADURIA"],
@@ -936,7 +936,7 @@ function renderListadoExpedientes(expedientes, mountNode) {
     });
   }
 
-  async function abrirModalSalidaExpediente(expediente) {
+ async function abrirModalSalidaExpediente(expediente) {
     const trabajador = JSON.parse(localStorage.getItem("trabajador_validado") || "null");
     const usuarioRegistra = trabajador
       ? `${trabajador.dni} - ${trabajador.nombres} ${trabajador.apellidos}`
@@ -1099,13 +1099,31 @@ function renderListadoExpedientes(expedientes, mountNode) {
         return;
       }
 
+      // 🆕 REGISTRAR EN movimientos_expediente
+      try {
+        await expedienteService.registrarMovimiento({
+          id_expediente: String(expediente.id_expediente || "").trim(),
+          tipo_movimiento: tipo,
+          ubicacion_origen: "ARCHIVO MODULAR",
+          ubicacion_destino: _prettyLabel(destino),
+          estado_anterior: String(expediente.id_estado || "").trim(),
+          estado_nuevo: idEstadoDestino,
+          motivo: motivo,
+          observacion: observacionesSalida,
+          realizado_por: usuarioRegistra,
+          destino_externo: responsableReceptor || _prettyLabel(destino)
+        });
+      } catch (e) {
+        console.warn("⚠️ No se pudo registrar en movimientos_expediente:", e.message);
+      }
+
       showToast("Salida de expediente registrada", "success");
       cerrar();
       await initListadoPage({ mountNode, forceRefresh: true });
     });
   }
 
-  async function abrirModalRetornoExpediente(expediente) {
+async function abrirModalRetornoExpediente(expediente) {
     const trabajador = JSON.parse(localStorage.getItem("trabajador_validado") || "null");
     const usuarioRegistra = trabajador
       ? `${trabajador.dni} - ${trabajador.nombres} ${trabajador.apellidos}`
@@ -1195,6 +1213,24 @@ function renderListadoExpedientes(expedientes, mountNode) {
       if (!result.success) {
         showToast(result.message || "No se pudo registrar el retorno", "error");
         return;
+      }
+
+      // 🆕 REGISTRAR EN movimientos_expediente
+      try {
+        await expedienteService.registrarMovimiento({
+          id_expediente: String(expediente.id_expediente || "").trim(),
+          tipo_movimiento: "RETORNO",
+          ubicacion_origen: _prettyLabel(expediente.ubicacion_texto || "UBICACION EXTERNA"),
+          ubicacion_destino: "ARCHIVO MODULAR",
+          estado_anterior: String(expediente.id_estado || "").trim(),
+          estado_nuevo: idEstadoRetorno,
+          motivo: motivo,
+          observacion: observacionesRetorno,
+          realizado_por: usuarioRegistra,
+          destino_externo: ""
+        });
+      } catch (e) {
+        console.warn("⚠️ No se pudo registrar en movimientos_expediente:", e.message);
       }
 
       showToast("Retorno de expediente registrado", "success");

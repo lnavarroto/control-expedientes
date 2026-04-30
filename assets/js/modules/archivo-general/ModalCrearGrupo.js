@@ -28,27 +28,43 @@ function _escapeHtml(value) {
 }
 
 export async function abrirModalCrearGrupo(onSuccess) {
-  const especialistasResp = await archivoGeneralService.listarEspecialistas();
-  if (!especialistasResp.success) {
-    showToast("Error cargando especialistas", "error");
+  // ⚡ Cargar en PARALELO (no en secuencia)
+  const [especialistasResp, asistentesResp, expedientesResp] = await Promise.all([
+    archivoGeneralService.listarEspecialistas(),
+     archivoGeneralService.listarAsistentes(), 
+    archivoGeneralService.listarExpedientes()
+  ]);
+
+  if (!especialistasResp.success && !asistentesResp.success) {
+    showToast("Error cargando personal", "error");
     return;
   }
 
-  const expedientesResp = await archivoGeneralService.listarExpedientes();
   const expedientes = expedientesResp.success ? expedientesResp.data : [];
-
-  const especialistas = especialistasResp.data || [];
+  const especialistas = especialistasResp.success ? especialistasResp.data : [];
+  const asistentes = asistentesResp.success ? asistentesResp.data : [];
 
   let selectedExpedientes = [];
-  let mostrarSelector = false;
+  let personalFiltrado = [...especialistas]; // Por defecto especialistas
 
   const content = `
     <div class="space-y-4">
+      <!-- 🆕 Selector de CARGO primero -->
       <div>
-        <label class="block text-sm font-medium text-slate-700 mb-2">Especialista</label>
+        <label class="block text-sm font-medium text-slate-700 mb-2">Cargo</label>
+        <select id="select-cargo" class="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+          <option value="">-- Seleccionar cargo --</option>
+          <option value="ESPECIALISTA" selected>Especialista</option>
+          <option value="ASISTENTE">Asistente</option>
+        </select>
+      </div>
+
+      <!-- 🆕 Selector de PERSONA (se llena según cargo) -->
+      <div>
+        <label class="block text-sm font-medium text-slate-700 mb-2">Persona</label>
         <select id="select-especialista" class="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
           <option value="">-- Seleccionar --</option>
-          ${especialistas.map(e => `<option value="${_escapeHtml(e.id_usuario || '')}">${_escapeHtml(e.nombres || '')} ${_escapeHtml(e.apellidos || '')}</option>`).join('')}
+          ${especialistas.map(e => `<option value="${_escapeHtml(e.id_usuario || '')}" data-nombre="${_escapeHtml(e.nombres || '')} ${_escapeHtml(e.apellidos || '')}">${_escapeHtml(e.nombres || '')} ${_escapeHtml(e.apellidos || '')}</option>`).join('')}
         </select>
       </div>
 
@@ -92,7 +108,7 @@ export async function abrirModalCrearGrupo(onSuccess) {
       const observacion = document.getElementById("textarea-observacion").value.trim();
 
       if (!especialistaId) {
-        showToast("Debes seleccionar un especialista", "warning");
+        showToast("Debes seleccionar una persona", "warning");
         return;
       }
 
@@ -127,16 +143,45 @@ export async function abrirModalCrearGrupo(onSuccess) {
     }
   });
 
-  // Event listeners
+  // 🆕 Evento: Cambiar lista según cargo seleccionado
+  const selectCargo = document.getElementById("select-cargo");
+  const selectPersona = document.getElementById("select-especialista");
+
+  if (selectCargo && selectPersona) {
+    selectCargo.addEventListener("change", () => {
+      const cargo = selectCargo.value;
+      let lista = [];
+
+      if (cargo === "ESPECIALISTA") {
+        lista = especialistas;
+      } else if (cargo === "ASISTENTE") {
+        lista = asistentes;
+      }
+
+      selectPersona.innerHTML = `
+        <option value="">-- Seleccionar --</option>
+        ${lista.map(p => `<option value="${_escapeHtml(p.id_usuario || '')}">${_escapeHtml(p.nombres || '')} ${_escapeHtml(p.apellidos || '')}</option>`).join('')}
+      `;
+    });
+  }
+
+  // Event listeners existentes
   const checkboxAsignar = document.getElementById("checkbox-asignar-expedientes");
   const expedientesSelector = document.getElementById("expedientes-selector");
   const inputBuscar = document.getElementById("input-buscar-expedientes");
 
-  if (checkboxAsignar) {
-    checkboxAsignar.addEventListener("change", (e) => {
-      expedientesSelector.classList.toggle("hidden", !e.target.checked);
-    });
-  }
+ if (checkboxAsignar) {
+  checkboxAsignar.addEventListener("change", async (e) => {
+    if (e.target.checked) {
+      // Desmarcar para que no se quede checked
+      e.target.checked = false;
+      
+      // Primero crear el grupo, luego asignar expedientes
+      // O abrir el modal directamente si ya tienes el id_grupo
+      showToast("Primero crea el grupo, luego asigna expedientes desde la lista de grupos", "info");
+    }
+  });
+}
 
   if (inputBuscar) {
     inputBuscar.addEventListener("input", (e) => {
@@ -149,7 +194,6 @@ export async function abrirModalCrearGrupo(onSuccess) {
     });
   }
 
-  // Update selectedExpedientes cuando cambien los checkboxes
   document.querySelectorAll(".expediente-checkbox").forEach(cb => {
     cb.addEventListener("change", () => {
       selectedExpedientes = Array.from(document.querySelectorAll(".expediente-checkbox:checked")).map(c => c.value);

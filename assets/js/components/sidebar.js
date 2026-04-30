@@ -19,9 +19,10 @@ const submenus = {
     { key: "paquetes-general", label: "Paquetes para Archivo General", iconName: "paquetes" },
     { key: "paquetes-modular", label: "Paquetes para Archivo Modular", iconName: "paquetes" }
   ],
-  movimientos: [
+movimientos: [
     { key: "movimientos-modular", label: "Historial de Movimientos", iconName: "history" },
-    { key: "movimientos", label: "Movimientos Activos", iconName: "transfer" }
+    { key: "movimientos", label: "Historial de actualización de datos", iconName: "transfer" },
+    { key: "salidas-archivo", label: "Historial de Salidas al Archivo", iconName: "archiveBox" }
   ]
 };
 

@@ -12,7 +12,7 @@ const CACHE_TTL = 10 * 60 * 1000; // 10 minutos
 
 async function fetchAPI(action, params = {}) {
   try {
-    if (["listar_grupos_archivo_general", "listar_detalle_grupo_archivo", "obtener_grupo_con_detalle", "listar_salidas_archivo_general", "listar_especialistas_activos", "listar_responsables_activos", "listar_expedientes"].includes(action)) {
+    if (["listar_grupos_archivo_general", "listar_detalle_grupo_archivo", "obtener_grupo_con_detalle", "listar_salidas_archivo_general", "listar_especialistas_activos", "listar_asistentes_activos", "listar_responsables_activos", "listar_expedientes"].includes(action)) {
       // GET request
       const queryParams = new URLSearchParams({ action, ...params });
       const response = await fetch(`${API_URL}?${queryParams}`, {
@@ -58,7 +58,9 @@ export const archivoGeneralService = {
   async listarEspecialistas() {
     return await fetchAPI("listar_especialistas_activos");
   },
-
+  async listarAsistentes() {
+  return await fetchAPI("listar_asistentes_activos");
+},
   async listarResponsables() {
     return await fetchAPI("listar_responsables_activos");
   },
