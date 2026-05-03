@@ -1,7 +1,7 @@
 ﻿/**
  * Página de Listado de Expedientes - Backend Integration
  */
-
+import { Loader, injectLoaderStyles, loaderHTML } from "../../components/loader.js";
 import { openModal } from "../../components/modal.js";
 import { statusBadge } from "../../components/statusBadge.js";
 import { icon } from "../../components/icons.js";
@@ -79,15 +79,17 @@ function _resolverIdEstadoDesdeCatalogo(aliasList, idFallback = "") {
   }
   return String(idFallback || "").trim();
 }
-
-function _estadoExpedienteNormalizado(expediente, formateado = null) {
-  const porId = obtenerNombreEstado(expediente?.id_estado);
-  const porTexto = expediente?.nombre_estado || expediente?.estado || formateado?.estado || "";
-  return _normalizarEstadoClave(porId || porTexto);
-}
-
 function _esEstadoPrestamo(expediente, formateado = null) {
   const estadoNormalizado = _estadoExpedienteNormalizado(expediente, formateado);
+  
+  // Si está archivado, NO está en préstamo
+  if (
+    estadoNormalizado.includes("ARCHIVADO") ||
+    estadoNormalizado.includes("ARCHIVO") ||
+    estadoNormalizado.includes("ENVIADO") ||
+    estadoNormalizado.includes("FINALIZADO")
+  ) return false;
+  
   if (
     estadoNormalizado.includes("PRESTAMO") ||
     estadoNormalizado.includes("PRESTADO") ||
@@ -101,6 +103,30 @@ function _esEstadoPrestamo(expediente, formateado = null) {
 
   return idConRetorno.includes(String(expediente?.id_estado || "").trim());
 }
+
+function _esEstadoArchivado(expediente, formateado = null) {
+  const estadoNormalizado = _estadoExpedienteNormalizado(expediente, formateado);
+  
+  if (
+    estadoNormalizado.includes("ARCHIVADO") ||
+    estadoNormalizado.includes("ARCHIVO") ||
+    estadoNormalizado.includes("ENVIADO") ||
+    estadoNormalizado.includes("ENVIO_DEFINITIVO") ||
+    estadoNormalizado.includes("FINALIZADO")
+  ) return true;
+
+  const idEstado = String(expediente?.id_estado || "").trim();
+  if (idEstado === "10" || idEstado === "9") return true;
+
+  return false;
+}
+function _estadoExpedienteNormalizado(expediente, formateado = null) {
+  const porId = obtenerNombreEstado(expediente?.id_estado);
+  const porTexto = expediente?.nombre_estado || expediente?.estado || formateado?.estado || "";
+  return _normalizarEstadoClave(porId || porTexto);
+}
+
+
 
 let catalogosEdicionPromise = null;
 
@@ -189,11 +215,19 @@ function renderTablaExpedientes(expedientes, paginaActual = 1, itemsPorPagina = 
         <td class="px-4 py-3 border-t border-slate-100">${estadoHtml}</td>
         <td class="px-4 py-3 border-t border-slate-100 text-sm text-slate-700">${formateado.registradoPor}</td>
         <td class="px-4 py-3 border-t border-slate-100">
-          <div class="flex items-center justify-center gap-2">
-            <button class="btn btn-secondary text-xs btn-ver-detalles inline-flex items-center gap-1" data-numero="${formateado.numero}">${icon("eye", "w-3.5 h-3.5")}<span>Ver</span></button>
-            <button class="btn btn-secondary text-xs btn-movimiento-exp inline-flex items-center gap-1" data-numero="${formateado.numero}" data-accion="${enPrestamo ? "retorno" : "salida"}">${icon("moveRight", "w-3.5 h-3.5")}<span>${enPrestamo ? "Retorno" : "Salida"}</span></button>
-          </div>
-        </td>
+  <div class="flex items-center justify-center gap-2">
+    <button class="btn btn-secondary text-xs btn-ver-detalles inline-flex items-center gap-1" data-numero="${formateado.numero}">${icon("eye", "w-3.5 h-3.5")}<span>Ver</span></button>
+    ${(() => {
+      const estaArchivado = _esEstadoArchivado(exp, formateado);
+      if (estaArchivado) {
+        return `<span class="text-xs text-slate-400 italic bg-slate-100 px-2 py-1 rounded">Archivado</span>`;
+      }
+      return `
+        <button class="btn btn-secondary text-xs btn-movimiento-exp inline-flex items-center gap-1" data-numero="${formateado.numero}" data-accion="${enPrestamo ? "retorno" : "salida"}">${icon("moveRight", "w-3.5 h-3.5")}<span>${enPrestamo ? "Retorno" : "Salida"}</span></button>
+      `;
+    })()}
+  </div>
+</td>
       </tr>
     `;
   }).join("");
@@ -437,24 +471,44 @@ function renderPanelFiltradores(expedientes, filtros = {}) {
  * Inicializar página de listado
  */
 export async function initListadoPage({ mountNode, forceRefresh = false }) {
+  // 🎬 MOSTRAR LOADER AVANZADO INMEDIATAMENTE
+  const loaderId = Loader.show({
+  variante: 'expediente',
+  mensajes: ['Preparando expedientes...', 'Cargando registros...', 'Organizando datos...', 'Casi listo...'],
+  overlay: false,
+  contenedor: mountNode
+});
+
+// 🎯 Centrar el loader dentro del contenedor
+setTimeout(() => {
+  const loaderEl = document.getElementById(loaderId);
+  if (loaderEl) {
+    loaderEl.style.display = 'flex';
+    loaderEl.style.alignItems = 'center';
+    loaderEl.style.justifyContent = 'center';
+    loaderEl.style.minHeight = '400px';
+    loaderEl.style.position = 'relative';
+    loaderEl.style.background = 'transparent';
+  }
+}, 50);
+  
   try {
     await estadoService.precargar();
   } catch (error) {
     console.warn("⚠️ No se pudo refrescar catálogo de estados:", error?.message || error);
   }
 
-  // ✅ OPTIMIZACIÓN: Mostrar caché primero (si existe) para velocidad inmediata
   const cachedExp = forceRefresh ? [] : expedienteService.listarDelBackendSync();
   
   if (cachedExp.length > 0) {
-    console.log("⚡ Mostrando expedientes del caché (carga rápida)");
+    Loader.progress(loaderId, 80, 2);
+    await new Promise(resolve => setTimeout(resolve, 300));
+    Loader.hide(loaderId);
     renderListadoExpedientes(cachedExp, mountNode);
     
-    // En background, actualizar con datos frescos
     expedienteService.listarDelBackend({ forceRefresh: true })
       .then(resultado => {
         if (resultado.success && resultado.data) {
-          console.log("✅ Datos actualizados del backend");
           renderListadoExpedientes(resultado.data, mountNode);
         }
       })
@@ -463,21 +517,14 @@ export async function initListadoPage({ mountNode, forceRefresh = false }) {
     return;
   }
 
-  // Si no hay caché, mostrar spinner mientras carga
-  mountNode.innerHTML = `
-    <div class="text-center py-8">
-      <p class="text-slate-500 font-medium inline-flex items-center gap-2">${icon("archiveBox", "w-4 h-4")}<span>Cargando expedientes...</span></p>
-      <div class="mt-4 inline-block">
-        <div class="animate-spin inline-block w-6 h-6 border-4 border-slate-300 border-t-blue-500 rounded-full"></div>
-      </div>
-    </div>
-  `;
-
   try {
-    // Obtener expedientes del backend
-    const resultado = await expedienteService.listarDelBackend({ forceRefresh });
+    Loader.progress(loaderId, 50, 1);
+    const resultado = await expedienteService.listarLigeroDelBackend({ forceRefresh });
 
+    Loader.progress(loaderId, 100, 3);
+    
     if (!resultado.success || !resultado.data) {
+      Loader.hide(loaderId);
       const t = ALERT_TONES.warning;
       mountNode.innerHTML = `
         <div class="card-surface p-8 text-center border-l-4 ${t.border} ${t.surface}">
@@ -489,8 +536,10 @@ export async function initListadoPage({ mountNode, forceRefresh = false }) {
       return;
     }
 
+    Loader.hide(loaderId);
     renderListadoExpedientes(resultado.data, mountNode);
   } catch (error) {
+    Loader.hide(loaderId);
     console.error("Error en listadoPage:", error);
     const t = ALERT_TONES.danger;
     mountNode.innerHTML = `
@@ -506,6 +555,11 @@ export async function initListadoPage({ mountNode, forceRefresh = false }) {
  * Renderizar página de listado con expedientes
  */
 function renderListadoExpedientes(expedientes, mountNode) {
+   const filtrosRestaurados = window.__ultimosFiltros;
+  if (filtrosRestaurados) {
+    filtrosActivos = { ...filtrosRestaurados };
+    window.__ultimosFiltros = null; // Limpiar después de usar
+  }
   const expedientesIndexados = (expedientes || []).map((exp) => {
     const textoBusqueda = [
       exp.codigo_expediente_completo,
@@ -852,8 +906,12 @@ function renderListadoExpedientes(expedientes, mountNode) {
         }
 
         showToast("Expediente actualizado correctamente", "success");
-        mountNode.innerHTML = renderHTML();
-        setupEventListeners();
+// Restaurar filtros si existen
+if (window.__filtrosActivos) {
+  aplicarFiltrosGuardados();
+}
+mountNode.innerHTML = renderHTML();
+setupEventListeners();
         cerrarModalActivo();
       } catch (error) {
         showToast(`${error.message}`, "error");
@@ -1117,9 +1175,11 @@ function renderListadoExpedientes(expedientes, mountNode) {
         console.warn("⚠️ No se pudo registrar en movimientos_expediente:", e.message);
       }
 
-      showToast("Salida de expediente registrada", "success");
-      cerrar();
-      await initListadoPage({ mountNode, forceRefresh: true });
+     showToast("Salida de expediente registrada", "success");
+cerrar();
+// Guardar filtros antes de recargar
+window.__filtrosActivos = { ...filtrosActivos };
+await initListadoPage({ mountNode, forceRefresh: true });
     });
   }
 
@@ -1233,12 +1293,27 @@ async function abrirModalRetornoExpediente(expediente) {
         console.warn("⚠️ No se pudo registrar en movimientos_expediente:", e.message);
       }
 
-      showToast("Retorno de expediente registrado", "success");
-      cerrar();
-      await initListadoPage({ mountNode, forceRefresh: true });
+   showToast("Retorno de expediente registrado", "success");
+cerrar();
+// Guardar filtros antes de recargar
+window.__filtrosActivos = { ...filtrosActivos };
+await initListadoPage({ mountNode, forceRefresh: true });
     });
   }
-
+function aplicarFiltrosGuardados() {
+  if (window.__filtrosActivos) {
+    filtrosActivos = { ...window.__filtrosActivos };
+    const filtroTexto = (filtrosActivos.texto || "").toLowerCase();
+    expedientesFiltrados = expedientesIndexados.filter(exp => {
+      const cumpleMateria = !filtrosActivos.materia || exp.codigo_materia === filtrosActivos.materia;
+      const cumpleJuzgado = !filtrosActivos.juzgado || exp.juzgado_texto === filtrosActivos.juzgado || exp.id_juzgado == filtrosActivos.juzgado;
+      const cumpleEstado = !filtrosActivos.estado || exp.id_estado == filtrosActivos.estado;
+      const cumpleTexto = !filtroTexto || String(exp._textoBusqueda || "").includes(filtroTexto);
+      return cumpleMateria && cumpleJuzgado && cumpleEstado && cumpleTexto;
+    });
+    window.__filtrosActivos = null;
+  }
+}
   /**
    * Configurar event listeners
    */

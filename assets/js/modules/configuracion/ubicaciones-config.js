@@ -2,25 +2,29 @@
  * Módulo Ubicaciones Configuración - Gestión de ubicaciones maestras
  */
 
-import { ubicacionConfigService } from "../../services/ubicacionConfigService.js";
+import { ubicacionService } from "../../services/ubicacionService.js";
 import { renderTable } from "../../components/table.js";
 import { showToast } from "../../components/toast.js";
 import { openModal } from "../../components/modal.js";
+import { icon } from "../../components/icons.js";
 
 function renderUbicacionesTable(ubicaciones) {
-  const rows = ubicaciones.map(u => ({
-    codigo: u.codigo,
-    nombre: u.nombre,
-    tipo: u.tipo,
-    descripcion: u.descripcion,
-    estado: `<span class="badge ${u.activo ? 'bg-indigo-100 text-indigo-800' : 'bg-slate-100 text-slate-800'}">${u.activo ? '✓ Activo' : '✗ Inactivo'}</span>`,
-    acciones: `
-      <div class="flex gap-2">
-        <button class="btn btn-secondary text-xs inline-flex items-center gap-1" data-action="editar" data-id="${u.id}">${icon("edit", "w-3 h-3")}<span>Editar</span></button>
-        <button class="btn btn-secondary text-xs inline-flex items-center gap-1" data-action="toggle" data-id="${u.id}">${u.activo ? icon("deactivate", "w-3 h-3") : icon("activate", "w-3 h-3")}<span>${u.activo ? 'Desactivar' : 'Activar'}</span></button>
-      </div>
-    `
-  }));
+  const rows = ubicaciones.map(u => {
+    const esActivo = u.activo === "SI";
+    return {
+      codigo: u.codigo_ubicacion || u.codigo || "-",
+      nombre: u.nombre_ubicacion || u.nombre || "-",
+      tipo: u.tipo_ubicacion || u.tipo || "-",
+      descripcion: u.descripcion || "-",
+      estado: `<span class="badge ${esActivo ? 'bg-indigo-100 text-indigo-800' : 'bg-slate-100 text-slate-800'} font-semibold">${esActivo ? '✓ Activo' : '✗ Inactivo'}</span>`,
+      acciones: `
+        <div class="flex gap-2">
+          <button class="btn btn-secondary text-xs inline-flex items-center gap-1" data-action="editar" data-id="${u.id_ubicacion}">${icon("edit", "w-3 h-3")}<span>Editar</span></button>
+          <button class="btn btn-secondary text-xs inline-flex items-center gap-1" data-action="toggle" data-id="${u.id_ubicacion}">${esActivo ? icon("deactivate", "w-3 h-3") : icon("activate", "w-3 h-3")}<span>${esActivo ? 'Desactivar' : 'Activar'}</span></button>
+        </div>
+      `
+    };
+  });
 
   return renderTable({
     columns: [
@@ -40,24 +44,24 @@ function formUbicacion(ubicacion = null) {
   return `
     <form id="form-ubicacion" class="space-y-3">
       <div class="grid md:grid-cols-2 gap-3">
-        <input type="hidden" name="id" value="${ubicacion?.id || ''}">
+        <input type="hidden" name="id_ubicacion" value="${ubicacion?.id_ubicacion || ''}">
         
         <div>
           <label class="text-sm font-semibold">Código</label>
-          <input class="input-base" name="codigo" value="${ubicacion?.codigo || ''}" placeholder="EST" maxlength="4" required />
+          <input class="input-base" name="codigo_ubicacion" value="${ubicacion?.codigo_ubicacion || ''}" placeholder="EST" maxlength="4" required />
         </div>
         
         <div>
           <label class="text-sm font-semibold">Tipo</label>
-          <select class="select-base" name="tipo" required>
+          <select class="select-base" name="tipo_ubicacion" required>
             <option value="">Selecciona tipo</option>
-            ${ubicacionConfigService.tipos().map(t => `<option value="${t}" ${ubicacion?.tipo === t ? 'selected' : ''}>${t}</option>`).join('')}
+            ${ubicacionService.tiposUbicacion().map(t => `<option value="${t}" ${ubicacion?.tipo_ubicacion === t ? 'selected' : ''}>${t}</option>`).join('')}
           </select>
         </div>
         
         <div class="md:col-span-2">
           <label class="text-sm font-semibold">Nombre</label>
-          <input class="input-base" name="nombre" value="${ubicacion?.nombre || ''}" placeholder="Estante" required />
+          <input class="input-base" name="nombre_ubicacion" value="${ubicacion?.nombre_ubicacion || ''}" placeholder="Estante" required />
         </div>
         
         <div class="md:col-span-2">
@@ -68,8 +72,8 @@ function formUbicacion(ubicacion = null) {
         <div>
           <label class="text-sm font-semibold">Estado</label>
           <select class="select-base" name="activo" required>
-            <option value="true" ${ubicacion?.activo !== false ? 'selected' : ''}>Activo</option>
-            <option value="false" ${ubicacion?.activo === false ? 'selected' : ''}>Inactivo</option>
+            <option value="SI" ${ubicacion?.activo === "SI" ? 'selected' : ''}>Activo</option>
+            <option value="NO" ${ubicacion?.activo === "NO" ? 'selected' : ''}>Inactivo</option>
           </select>
         </div>
       </div>
@@ -78,7 +82,7 @@ function formUbicacion(ubicacion = null) {
 }
 
 export function initUbicacionesConfigModule(mountNode) {
-  const ubicaciones = ubicacionConfigService.listar();
+  const ubicaciones = ubicacionService.listarDesdeLocalStorage();
 
   mountNode.innerHTML = `
     <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
@@ -99,33 +103,43 @@ export function initUbicacionesConfigModule(mountNode) {
       title: "Registrar nueva ubicación",
       content: formUbicacion(),
       confirmText: "Guardar ubicación",
-      onConfirm: (close) => {
+      onConfirm: async (close) => {
         const form = document.getElementById("form-ubicacion");
         const data = Object.fromEntries(new FormData(form).entries());
-        data.activo = data.activo === 'true';
-        ubicacionConfigService.guardar(data);
-        showToast("Ubicación guardada correctamente", "success");
-        close();
-        initUbicacionesConfigModule(mountNode);
+        try {
+          if (!data.id_ubicacion) {
+            await ubicacionService.crearUbicacion(data);
+          } else {
+            await ubicacionService.actualizarUbicacion(data);
+          }
+          showToast("Ubicación guardada correctamente", "success");
+          close();
+          initUbicacionesConfigModule(mountNode);
+        } catch (error) {
+          showToast("Error al guardar la ubicación: " + (error.message || "Error desconocido"), "error");
+        }
       }
     });
   });
 
   mountNode.querySelectorAll("[data-action='editar']").forEach(btn => {
     btn.addEventListener("click", () => {
-      const ubicacion = ubicacionConfigService.obtener(btn.dataset.id);
+      const ubicacion = ubicacionService.obtenerUbicacion(btn.dataset.id);
       openModal({
         title: "Editar ubicación",
         content: formUbicacion(ubicacion),
         confirmText: "Actualizar",
-        onConfirm: (close) => {
+        onConfirm: async (close) => {
           const form = document.getElementById("form-ubicacion");
           const data = Object.fromEntries(new FormData(form).entries());
-          data.activo = data.activo === 'true';
-          ubicacionConfigService.guardar(data);
-          showToast("Ubicación actualizada correctamente", "success");
-          close();
-          initUbicacionesConfigModule(mountNode);
+          try {
+            await ubicacionService.actualizarUbicacion(data);
+            showToast("Ubicación actualizada correctamente", "success");
+            close();
+            initUbicacionesConfigModule(mountNode);
+          } catch (error) {
+            showToast("Error al actualizar la ubicación: " + (error.message || "Error desconocido"), "error");
+          }
         }
       });
     });
@@ -133,7 +147,7 @@ export function initUbicacionesConfigModule(mountNode) {
 
   mountNode.querySelectorAll("[data-action='toggle']").forEach(btn => {
     btn.addEventListener("click", () => {
-      ubicacionConfigService.toggleActivo(btn.dataset.id);
+      ubicacionService.toggleActivo(btn.dataset.id);
       showToast("Estado actualizado", "success");
       initUbicacionesConfigModule(mountNode);
     });

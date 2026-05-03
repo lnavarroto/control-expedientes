@@ -12,7 +12,7 @@ import { initParametrosModule } from "./parametros.js";
 import { initActualizacionModule } from "./actualizacion.js";
 import { juzgadoService } from "../../services/juzgadoService.js";
 import { materiaService } from "../../services/materiaService.js";
-import { ubicacionConfigService } from "../../services/ubicacionConfigService.js";
+import { ubicacionService } from "../../services/ubicacionService.js";
 import { estadoService } from "../../services/estadoService.js";
 import { icon } from "../../components/icons.js";
 
@@ -31,7 +31,7 @@ function getStats() {
   return {
     juzgados: juzgadoService.listar().filter(j => j.activo).length,
     materias: materiaService.listar().filter(m => m.activo).length,
-    ubicaciones: ubicacionConfigService.listar().filter(u => u.activo).length,
+    ubicaciones: ubicacionService.listarDesdeLocalStorage().filter(u => u.activo === "SI").length,
     estados: estadoService.listar().filter(e => e.activo).length
   };
 }
@@ -83,7 +83,7 @@ function renderDashboardModule() {
             </div>
             <div class="flex justify-between items-center py-2 border-b border-slate-100">
               <span class="text-slate-600">Total registros catálogo</span>
-              <span class="badge bg-indigo-100 text-indigo-800 font-semibold">${juzgadoService.listar().length + materiaService.listar().length + ubicacionConfigService.listar().length}</span>
+              <span class="badge bg-indigo-100 text-indigo-800 font-semibold">${juzgadoService.listar().length + materiaService.listar().length + ubicacionService.listarDesdeLocalStorage().length}</span>
             </div>
             <div class="flex justify-between items-center py-2">
               <span class="text-slate-600">Estado del sistema</span>

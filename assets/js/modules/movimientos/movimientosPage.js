@@ -3,6 +3,7 @@ import { expedienteService } from "../../services/expedienteService.js";
 import { icon } from "../../components/icons.js";
 
 export async function initMovimientosPage({ mountNode }) {
+  // 1. Mostrar skeleton INMEDIATAMENTE
   mountNode.innerHTML = `
     <section class="space-y-5">
       <div class="rounded-2xl p-5 text-white shadow-lg"
@@ -11,7 +12,7 @@ export async function initMovimientosPage({ mountNode }) {
           <div class="flex items-center gap-3">
             <span class="bg-white/10 rounded-xl p-3">${icon("clock", "w-8 h-8")}</span>
             <div>
-              <h1 class="text-xl md:text-2xl font-bold">Historial de Actualziación de Datos</h1>
+              <h1 class="text-xl md:text-2xl font-bold">Historial de Actualización de Datos</h1>
               <p class="text-blue-100 text-sm">Consulta, filtra y revisa la trazabilidad de expedientes.</p>
             </div>
           </div>
@@ -23,9 +24,9 @@ export async function initMovimientosPage({ mountNode }) {
         </div>
       </div>
 
-     <div id="movimientos-kpis" class="grid grid-cols-2 lg:grid-cols-5 gap-3">
-  ${renderKpiSkeleton()}
-</div>
+      <div id="movimientos-kpis" class="grid grid-cols-2 lg:grid-cols-5 gap-3">
+        ${renderKpiSkeleton()}
+      </div>
 
       <div class="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
         <div class="flex items-center gap-2 mb-4">
@@ -81,100 +82,239 @@ export async function initMovimientosPage({ mountNode }) {
             <span class="w-1.5 h-5 bg-blue-500 rounded-full"></span>
             Registro de movimientos
           </h2>
-          <span class="text-xs text-slate-500" id="movimientos-total"></span>
+          <span class="text-xs text-slate-500" id="movimientos-total">Cargando...</span>
         </div>
 
-       <div class="p-5" id="movimientos-table">
-  ${renderTableSkeleton()}
-</div>
+        <div class="p-5" id="movimientos-table">
+          ${renderTableSkeleton()}
+        </div>
       </div>
     </section>
   `;
 
   agregarEstiloFiltros();
 
-  const resultado = await expedienteService.listarMovimientos();
+  // Variables para datos
+  let data = [];
+  let kpiNode = null;
+  let tableNode = null;
+  let totalNode = null;
 
-  const data = normalizarMovimientos(resultado || []);
+  try {
+    // 2. Cargar datos reales
+    const resultado = await expedienteService.listarMovimientos();
+    
+    // 3. Normalizar datos
+    data = normalizarMovimientos(resultado || []);
 
-  const usuarios = obtenerUnicos(data, "usuario");
-  const estados = obtenerUnicos(data, "estadoSistema");
-  const responsables = obtenerUnicos(data, "responsable");
+    // 4. Obtener elementos del DOM (después de que el HTML existe)
+    kpiNode = document.getElementById("movimientos-kpis");
+    tableNode = document.getElementById("movimientos-table");
+    totalNode = document.getElementById("movimientos-total");
 
-  cargarSelect("filtro-mov-usuario", usuarios, limpiarUsuario);
-  cargarSelect("filtro-mov-estado", estados);
-  cargarSelect("filtro-mov-responsable", responsables, limpiarUsuario);
+    // 5. Obtener valores únicos para los selects
+    const usuarios = obtenerUnicos(data, "usuario");
+    const estados = obtenerUnicos(data, "estadoSistema");
+    const responsables = obtenerUnicos(data, "responsable");
 
-  const kpiNode = document.getElementById("movimientos-kpis");
-  const tableNode = document.getElementById("movimientos-table");
-  const totalNode = document.getElementById("movimientos-total");
+    cargarSelect("filtro-mov-usuario", usuarios, limpiarUsuario);
+    cargarSelect("filtro-mov-estado", estados);
+    cargarSelect("filtro-mov-responsable", responsables, limpiarUsuario);
 
-  function filtrarRows() {
-    const texto = normalizarTexto(valor("filtro-mov-texto"));
-    const usuario = valor("filtro-mov-usuario");
-    const estado = valor("filtro-mov-estado");
-    const responsable = valor("filtro-mov-responsable");
-    const expediente = normalizarTexto(valor("filtro-mov-expediente"));
-    const desde = valor("filtro-mov-desde");
-    const hasta = valor("filtro-mov-hasta");
-    const soloHoy = document.getElementById("filtro-mov-hoy")?.checked;
-    const orden = valor("filtro-mov-orden");
+    // 6. Funciones de filtrado y renderizado
+    function filtrarRows() {
+      const texto = normalizarTexto(valor("filtro-mov-texto"));
+      const usuario = valor("filtro-mov-usuario");
+      const estado = valor("filtro-mov-estado");
+      const responsable = valor("filtro-mov-responsable");
+      const expediente = normalizarTexto(valor("filtro-mov-expediente"));
+      const desde = valor("filtro-mov-desde");
+      const hasta = valor("filtro-mov-hasta");
+      const soloHoy = document.getElementById("filtro-mov-hoy")?.checked;
+      const orden = valor("filtro-mov-orden");
 
-    let rows = data.filter((row) => {
-      const bolsa = normalizarTexto(`
-        ${row.fecha}
-        ${row.hora}
-        ${row.expediente}
-        ${row.usuario}
-        ${row.estado}
-        ${row.estadoSistema}
-        ${row.responsable}
-        ${row.observacion}
-      `);
+      let rows = data.filter((row) => {
+        const bolsa = normalizarTexto(`
+          ${row.fecha}
+          ${row.hora}
+          ${row.expediente}
+          ${row.usuario}
+          ${row.estado}
+          ${row.estadoSistema}
+          ${row.responsable}
+          ${row.observacion}
+        `);
 
-      return (!texto || bolsa.includes(texto))
-        && (!usuario || row.usuario === usuario)
-        && (!estado || row.estadoSistema === estado)
-        && (!responsable || row.responsable === responsable)
-        && (!expediente || normalizarTexto(row.expediente).includes(expediente))
-        && (!soloHoy || esMismoDia(row.fecha))
-        && cumpleRangoFecha(row.fecha, desde, hasta);
+        return (!texto || bolsa.includes(texto))
+          && (!usuario || row.usuario === usuario)
+          && (!estado || row.estadoSistema === estado)
+          && (!responsable || row.responsable === responsable)
+          && (!expediente || normalizarTexto(row.expediente).includes(expediente))
+          && (!soloHoy || esMismoDia(row.fecha))
+          && cumpleRangoFecha(row.fecha, desde, hasta);
+      });
+
+      rows = ordenarRows(rows, orden);
+      return rows;
+    }
+
+    function renderResumen(rows) {
+      const resumen = {
+        total: rows.length,
+        hoy: rows.filter((r) => esMismoDia(r.fecha)).length,
+        expedientes: obtenerUnicos(rows, "expediente").length,
+        usuarios: obtenerUnicos(rows, "usuario").length,
+        estados: obtenerUnicos(rows, "estadoSistema").length
+      };
+
+      const cards = [
+        { label: "Total", value: resumen.total, iconName: "list", type: "brand" },
+        { label: "Hoy", value: resumen.hoy, iconName: "calendar", type: "accent" },
+        { label: "Expedientes", value: resumen.expedientes, iconName: "folder", type: "soft" },
+        { label: "Usuarios", value: resumen.usuarios, iconName: "users", type: "warning" },
+        { label: "Estados", value: resumen.estados, iconName: "tag", type: "dark" }
+      ];
+
+      if (kpiNode) {
+        kpiNode.innerHTML = cards.map((card) => `
+          <div class="mov-kpi mov-kpi--${card.type}">
+            <div class="mov-kpi__glow"></div>
+            <div class="mov-kpi__content">
+              <div>
+                <p class="mov-kpi__label">${card.label}</p>
+                <p class="mov-kpi__value">${card.value}</p>
+              </div>
+              <span class="mov-kpi__icon">${icon(card.iconName, "w-5 h-5")}</span>
+            </div>
+          </div>
+        `).join("");
+      }
+    }
+
+    function render() {
+      const rows = filtrarRows();
+
+      renderResumen(rows);
+
+      if (totalNode) {
+        totalNode.textContent = `${rows.length} registro${rows.length !== 1 ? "s" : ""} encontrado${rows.length !== 1 ? "s" : ""}`;
+      }
+
+      if (tableNode) {
+        tableNode.innerHTML = renderTable({
+          columns: [
+            { key: "fecha", label: "Fecha" },
+            { key: "hora", label: "Hora" },
+            { key: "expediente", label: "Expediente" },
+            { key: "usuario", label: "Registrado por" },
+            { key: "estado", label: "Origen" },
+            { key: "estadoSistema", label: "Destino" },
+            { key: "responsable", label: "Responsable" },
+            { key: "observacion", label: "Observación" }
+          ],
+          rows: rows.map((row) => ({
+            ...row,
+            expediente: renderExpediente(row.expediente),
+            usuario: renderUsuarioTexto(row.usuario),
+            responsable: renderUsuarioTexto(row.responsable),
+            estado: renderBadge(row.estado, "blue"),
+            estadoSistema: renderBadge(row.estadoSistema, "purple"),
+            observacion: renderObservacion(row.observacion)
+          })),
+          emptyText: "No se encontraron movimientos con los filtros seleccionados"
+        });
+      }
+    }
+
+    // 7. Configurar event listeners
+    const filterIds = [
+      "filtro-mov-texto",
+      "filtro-mov-usuario",
+      "filtro-mov-estado",
+      "filtro-mov-responsable",
+      "filtro-mov-expediente",
+      "filtro-mov-desde",
+      "filtro-mov-hasta",
+      "filtro-mov-hoy",
+      "filtro-mov-orden"
+    ];
+
+    filterIds.forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) {
+        el.addEventListener("input", render);
+        el.addEventListener("change", render);
+      }
     });
 
-    rows = ordenarRows(rows, orden);
-    return rows;
-  }
+    const btnLimpiar = document.getElementById("btn-limpiar-filtros");
+    if (btnLimpiar) {
+      btnLimpiar.addEventListener("click", () => {
+        const ids = [
+          "filtro-mov-texto",
+          "filtro-mov-usuario",
+          "filtro-mov-estado",
+          "filtro-mov-responsable",
+          "filtro-mov-expediente",
+          "filtro-mov-desde",
+          "filtro-mov-hasta"
+        ];
+        ids.forEach((id) => {
+          const el = document.getElementById(id);
+          if (el) el.value = "";
+        });
 
-  function renderResumen(rows) {
-  const resumen = {
-    total: rows.length,
-    hoy: rows.filter((r) => esMismoDia(r.fecha)).length,
-    expedientes: obtenerUnicos(rows, "expediente").length,
-    usuarios: obtenerUnicos(rows, "usuario").length,
-    estados: obtenerUnicos(rows, "estadoSistema").length
-  };
+        const hoy = document.getElementById("filtro-mov-hoy");
+        if (hoy) hoy.checked = false;
 
-  const cards = [
-    { label: "Total", value: resumen.total, iconName: "list", type: "brand" },
-    { label: "Hoy", value: resumen.hoy, iconName: "calendar", type: "accent" },
-    { label: "Expedientes", value: resumen.expedientes, iconName: "folder", type: "soft" },
-    { label: "Usuarios", value: resumen.usuarios, iconName: "users", type: "warning" },
-    { label: "Estados", value: resumen.estados, iconName: "tag", type: "dark" }
-  ];
+        const orden = document.getElementById("filtro-mov-orden");
+        if (orden) orden.value = "reciente";
 
-  kpiNode.innerHTML = cards.map((card) => `
-    <div class="mov-kpi mov-kpi--${card.type}">
-      <div class="mov-kpi__glow"></div>
-      <div class="mov-kpi__content">
-        <div>
-          <p class="mov-kpi__label">${card.label}</p>
-          <p class="mov-kpi__value">${card.value}</p>
+        render();
+      });
+    }
+
+    // 8. Render inicial con datos reales
+    render();
+
+  } catch (error) {
+    console.error("Error cargando movimientos:", error);
+    
+    // Mostrar mensaje de error en lugar del skeleton
+    const tableNode = document.getElementById("movimientos-table");
+    const totalNode = document.getElementById("movimientos-total");
+    const kpiNode = document.getElementById("movimientos-kpis");
+    
+    if (kpiNode) {
+      kpiNode.innerHTML = `
+        <div class="col-span-full text-center py-4 text-red-600">
+          Error al cargar estadísticas
         </div>
-        <span class="mov-kpi__icon">${icon(card.iconName, "w-5 h-5")}</span>
-      </div>
-    </div>
-  `).join("");
+      `;
+    }
+    
+    if (totalNode) {
+      totalNode.textContent = "Error al cargar datos";
+    }
+    
+    if (tableNode) {
+      tableNode.innerHTML = `
+        <div class="text-center py-8 text-red-600">
+          <p class="font-semibold">❌ Error al cargar los movimientos</p>
+          <p class="text-sm mt-2">${error.message || "Error de conexión"}</p>
+          <button onclick="location.reload()" class="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+            Reintentar
+          </button>
+        </div>
+      `;
+    }
+  }
 }
+
+// =====================
+// HELPERS
+// =====================
+
 function renderKpiSkeleton() {
   const cards = [
     { label: "Total", iconName: "list", type: "brand" },
@@ -185,102 +325,28 @@ function renderKpiSkeleton() {
   ];
 
   return cards.map((card) => `
-    <div class="mov-kpi mov-kpi--${card.type} mov-kpi-loading">
+    <div class="mov-kpi mov-kpi--${card.type}" style="opacity: 0.7;">
       <div class="mov-kpi__glow"></div>
       <div class="mov-kpi__content">
         <div>
           <p class="mov-kpi__label">${card.label}</p>
-          <p class="mov-kpi__value">...</p>
+          <p class="mov-kpi__value animate-pulse">...</p>
         </div>
         <span class="mov-kpi__icon">${icon(card.iconName, "w-5 h-5")}</span>
       </div>
     </div>
   `).join("");
 }
+
 function renderTableSkeleton() {
   return `
     <div class="space-y-2">
       ${Array.from({ length: 8 }).map(() => `
-        <div class="h-10 rounded-lg bg-slate-200 animate-pulse"></div>
+        <div class="h-12 rounded-lg bg-gradient-to-r from-slate-100 to-slate-200 animate-pulse"></div>
       `).join("")}
     </div>
   `;
 }
-  function render() {
-    const rows = filtrarRows();
-
-    renderResumen(rows);
-
-    totalNode.textContent = `${rows.length} registro${rows.length !== 1 ? "s" : ""} encontrado${rows.length !== 1 ? "s" : ""}`;
-
-    tableNode.innerHTML = renderTable({
-      columns: [
-        { key: "fecha", label: "Fecha" },
-        { key: "hora", label: "Hora" },
-        { key: "expediente", label: "Expediente" },
-        { key: "usuario", label: "Registrado por" },
-        { key: "estado", label: "Origen" },
-        { key: "estadoSistema", label: "Destino" },
-        { key: "responsable", label: "Responsable" },
-        { key: "observacion", label: "Observación" }
-      ],
-      rows: rows.map((row) => ({
-        ...row,
-        expediente: renderExpediente(row.expediente),
-        usuario: renderUsuarioTexto(row.usuario),
-        responsable: renderUsuarioTexto(row.responsable),
-        estado: renderBadge(row.estado, "blue"),
-        estadoSistema: renderBadge(row.estadoSistema, "purple"),
-        observacion: renderObservacion(row.observacion)
-      })),
-      emptyText: "No se encontraron movimientos con los filtros seleccionados"
-    });
-  }
-
-  [
-    "filtro-mov-texto",
-    "filtro-mov-usuario",
-    "filtro-mov-estado",
-    "filtro-mov-responsable",
-    "filtro-mov-expediente",
-    "filtro-mov-desde",
-    "filtro-mov-hasta",
-    "filtro-mov-hoy",
-    "filtro-mov-orden"
-  ].forEach((id) => {
-    document.getElementById(id)?.addEventListener("input", render);
-    document.getElementById(id)?.addEventListener("change", render);
-  });
-
-  document.getElementById("btn-limpiar-filtros")?.addEventListener("click", () => {
-    [
-      "filtro-mov-texto",
-      "filtro-mov-usuario",
-      "filtro-mov-estado",
-      "filtro-mov-responsable",
-      "filtro-mov-expediente",
-      "filtro-mov-desde",
-      "filtro-mov-hasta"
-    ].forEach((id) => {
-      const el = document.getElementById(id);
-      if (el) el.value = "";
-    });
-
-    const hoy = document.getElementById("filtro-mov-hoy");
-    if (hoy) hoy.checked = false;
-
-    const orden = document.getElementById("filtro-mov-orden");
-    if (orden) orden.value = "reciente";
-
-    render();
-  });
-
-  render();
-}
-
-// =====================
-// HELPERS
-// =====================
 
 function normalizarMovimientos(resultado) {
   return resultado.map((item) => ({
@@ -330,7 +396,6 @@ function esMismoDia(fechaString) {
   if (!fechaString) return false;
 
   const hoy = new Date();
-
   const ymd = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, "0")}-${String(hoy.getDate()).padStart(2, "0")}`;
   const dmy = `${String(hoy.getDate()).padStart(2, "0")}/${String(hoy.getMonth() + 1).padStart(2, "0")}/${hoy.getFullYear()}`;
 
@@ -408,33 +473,19 @@ function renderBadge(texto, color) {
     slate: "mov-badge mov-badge--muted"
   };
 
-  return `
-    <span class="${colors[color] || colors.slate}">
-      ${escapeHtml(texto)}
-    </span>
-  `;
+  return `<span class="${colors[color] || colors.slate}">${escapeHtml(texto)}</span>`;
 }
 
 function renderUsuarioTexto(texto) {
   if (!texto) return `<span class="text-slate-300">—</span>`;
 
   const limpio = limpiarUsuario(texto);
-
-  return `
-    <span title="${escapeHtml(texto)}" class="text-slate-700 font-medium">
-      ${escapeHtml(limpio)}
-    </span>
-  `;
+  return `<span title="${escapeHtml(texto)}" class="text-slate-700 font-medium">${escapeHtml(limpio)}</span>`;
 }
 
 function renderExpediente(texto) {
   if (!texto) return `<span class="text-slate-300">—</span>`;
-
-  return `
-    <span class="inline-flex items-center px-2 py-1 rounded-lg bg-slate-100 text-slate-700 text-xs font-semibold">
-      ${escapeHtml(texto)}
-    </span>
-  `;
+  return `<span class="inline-flex items-center px-2 py-1 rounded-lg bg-slate-100 text-slate-700 text-xs font-semibold">${escapeHtml(texto)}</span>`;
 }
 
 function renderObservacion(texto) {
@@ -442,12 +493,7 @@ function renderObservacion(texto) {
 
   const limpio = String(texto);
   const corto = limpio.length > 70 ? `${limpio.substring(0, 70)}...` : limpio;
-
-  return `
-    <span title="${escapeHtml(limpio)}" class="text-slate-600">
-      ${escapeHtml(corto)}
-    </span>
-  `;
+  return `<span title="${escapeHtml(limpio)}" class="text-slate-600">${escapeHtml(corto)}</span>`;
 }
 
 function escapeHtml(value = "") {

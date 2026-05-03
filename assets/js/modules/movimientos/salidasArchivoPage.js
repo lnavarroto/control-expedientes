@@ -3,6 +3,7 @@ import { expedienteService } from "../../services/expedienteService.js";
 import { icon } from "../../components/icons.js";
 
 export async function initSalidasArchivoPage({ mountNode }) {
+  // 1. Mostrar skeleton INMEDIATAMENTE
   mountNode.innerHTML = `
     <section class="space-y-5">
       <div class="rounded-2xl p-5 text-white shadow-lg"
@@ -89,7 +90,7 @@ export async function initSalidasArchivoPage({ mountNode }) {
             <span class="w-1.5 h-5 bg-blue-500 rounded-full"></span>
             Registro de Salidas
           </h2>
-          <span class="text-xs text-slate-500" id="salidas-total"></span>
+          <span class="text-xs text-slate-500" id="salidas-total">Cargando...</span>
         </div>
 
         <div class="p-5" id="salidas-table">
@@ -101,143 +102,211 @@ export async function initSalidasArchivoPage({ mountNode }) {
 
   agregarEstiloFiltros();
 
-  const resultado = await expedienteService.listarSalidasArchivoGeneral();
-  const data = resultado || [];
+  // Variables para datos y elementos del DOM
+  let data = [];
+  let kpiNode = null;
+  let tableNode = null;
+  let totalNode = null;
 
-  const tipos = obtenerUnicos(data, "tipo");
-  const estados = obtenerUnicos(data, "estado");
-  const destinos = obtenerUnicos(data, "destino");
-  const responsables = obtenerUnicos(data, "responsableEntrega");
+  try {
+    // 2. Cargar datos reales
+    const resultado = await expedienteService.listarSalidasArchivoGeneral();
+    data = resultado || [];
 
-  cargarSelect("filtro-salida-tipo", tipos);
-  cargarSelect("filtro-salida-estado", estados);
-  cargarSelect("filtro-salida-destino", destinos);
-  cargarSelect("filtro-salida-responsable", responsables);
+    // 3. Obtener elementos del DOM después de que el HTML existe
+    kpiNode = document.getElementById("salidas-kpis");
+    tableNode = document.getElementById("salidas-table");
+    totalNode = document.getElementById("salidas-total");
 
-  const kpiNode = document.getElementById("salidas-kpis");
-  const tableNode = document.getElementById("salidas-table");
-  const totalNode = document.getElementById("salidas-total");
+    // 4. Obtener valores únicos para los selects
+    const tipos = obtenerUnicos(data, "tipo");
+    const estados = obtenerUnicos(data, "estado");
+    const destinos = obtenerUnicos(data, "destino");
+    const responsables = obtenerUnicos(data, "responsableEntrega");
 
-  function filtrarRows() {
-    const texto = normalizarTexto(valor("filtro-salida-texto"));
-    const tipo = valor("filtro-salida-tipo");
-    const estado = valor("filtro-salida-estado");
-    const destino = valor("filtro-salida-destino");
-    const responsable = valor("filtro-salida-responsable");
-    const grupo = normalizarTexto(valor("filtro-salida-grupo"));
-    const desde = valor("filtro-salida-desde");
-    const hasta = valor("filtro-salida-hasta");
-    const soloActivos = document.getElementById("filtro-salida-activo")?.checked;
-    const orden = valor("filtro-salida-orden");
+    cargarSelect("filtro-salida-tipo", tipos);
+    cargarSelect("filtro-salida-estado", estados);
+    cargarSelect("filtro-salida-destino", destinos);
+    cargarSelect("filtro-salida-responsable", responsables);
 
-    let rows = data.filter((row) => {
-      const bolsa = normalizarTexto(`
-        ${row.rotulo} ${row.tipo} ${row.destino} ${row.estado}
-        ${row.motivo} ${row.observacion} ${row.idGrupo}
-        ${row.responsableEntrega} ${row.responsableRecepcion}
-      `);
+    // 5. Funciones de filtrado y renderizado
+    function filtrarRows() {
+      const texto = normalizarTexto(valor("filtro-salida-texto"));
+      const tipo = valor("filtro-salida-tipo");
+      const estado = valor("filtro-salida-estado");
+      const destino = valor("filtro-salida-destino");
+      const responsable = valor("filtro-salida-responsable");
+      const grupo = normalizarTexto(valor("filtro-salida-grupo"));
+      const desde = valor("filtro-salida-desde");
+      const hasta = valor("filtro-salida-hasta");
+      const soloActivos = document.getElementById("filtro-salida-activo")?.checked;
+      const orden = valor("filtro-salida-orden");
 
-      return (!texto || bolsa.includes(texto))
-        && (!tipo || row.tipo === tipo)
-        && (!estado || row.estado === estado)
-        && (!destino || row.destino === destino)
-        && (!responsable || row.responsableEntrega === responsable)
-        && (!grupo || normalizarTexto(row.idGrupo).includes(grupo))
-        && (!soloActivos || row.activo?.toUpperCase() === "SI")
-        && cumpleRangoFecha(row.fechaSalida, desde, hasta);
-    });
+      let rows = data.filter((row) => {
+        const bolsa = normalizarTexto(`
+          ${row.rotulo || ''} ${row.tipo || ''} ${row.destino || ''} ${row.estado || ''}
+          ${row.motivo || ''} ${row.observacion || ''} ${row.idGrupo || ''}
+          ${row.responsableEntrega || ''} ${row.responsableRecepcion || ''}
+        `);
 
-    return ordenarRows(rows, orden);
-  }
+        return (!texto || bolsa.includes(texto))
+          && (!tipo || row.tipo === tipo)
+          && (!estado || row.estado === estado)
+          && (!destino || row.destino === destino)
+          && (!responsable || row.responsableEntrega === responsable)
+          && (!grupo || normalizarTexto(row.idGrupo || '').includes(grupo))
+          && (!soloActivos || row.activo?.toUpperCase() === "SI")
+          && cumpleRangoFecha(row.fechaSalida, desde, hasta);
+      });
 
-  function renderResumen(rows) {
-    const resumen = {
-      total: rows.length,
-      activas: rows.filter(r => r.activo?.toUpperCase() === "SI").length,
-      prestamos: rows.filter(r => r.tipo === "PRESTAMO").length,
-      definitivos: rows.filter(r => r.tipo === "ENVIO_DEFINITIVO").length,
-      pendientes: rows.filter(r => r.estado === "PENDIENTE" || r.estado === "ACTIVA").length
-    };
+      return ordenarRows(rows, orden);
+    }
 
-    const cards = [
-      { label: "Total", value: resumen.total, iconName: "list", type: "brand" },
-      { label: "Activas", value: resumen.activas, iconName: "checkCircle", type: "accent" },
-      { label: "Préstamos", value: resumen.prestamos, iconName: "users", type: "soft" },
-      { label: "Definitivos", value: resumen.definitivos, iconName: "truck", type: "warning" },
-      { label: "Pendientes", value: resumen.pendientes, iconName: "clock", type: "dark" }
+    function renderResumen(rows) {
+      const resumen = {
+        total: rows.length,
+        activas: rows.filter(r => r.activo?.toUpperCase() === "SI").length,
+        prestamos: rows.filter(r => r.tipo === "PRESTAMO").length,
+        definitivos: rows.filter(r => r.tipo === "ENVIO_DEFINITIVO").length,
+        pendientes: rows.filter(r => r.estado === "PENDIENTE" || r.estado === "ACTIVA").length
+      };
+
+      const cards = [
+        { label: "Total", value: resumen.total, iconName: "list", type: "brand" },
+        { label: "Activas", value: resumen.activas, iconName: "checkCircle", type: "accent" },
+        { label: "Préstamos", value: resumen.prestamos, iconName: "users", type: "soft" },
+        { label: "Definitivos", value: resumen.definitivos, iconName: "truck", type: "warning" },
+        { label: "Pendientes", value: resumen.pendientes, iconName: "clock", type: "dark" }
+      ];
+
+      if (kpiNode) {
+        kpiNode.innerHTML = cards.map((card) => `
+          <div class="mov-kpi mov-kpi--${card.type}">
+            <div class="mov-kpi__glow"></div>
+            <div class="mov-kpi__content">
+              <div>
+                <p class="mov-kpi__label">${card.label}</p>
+                <p class="mov-kpi__value">${card.value}</p>
+              </div>
+              <span class="mov-kpi__icon">${icon(card.iconName, "w-5 h-5")}</span>
+            </div>
+          </div>
+        `).join("");
+      }
+    }
+
+    function render() {
+      const rows = filtrarRows();
+      
+      renderResumen(rows);
+      
+      if (totalNode) {
+        totalNode.textContent = `${rows.length} salida${rows.length !== 1 ? "s" : ""} encontrada${rows.length !== 1 ? "s" : ""}`;
+      }
+
+      if (tableNode) {
+        tableNode.innerHTML = renderTable({
+          columns: [
+            { key: "fechaSalida",  label: "Fecha Salida" },
+            { key: "horaSalida",   label: "Hora" },
+            { key: "rotulo",       label: "Rótulo" },
+            { key: "tipo",         label: "Tipo" },
+            { key: "destino",      label: "Destino" },
+            { key: "idGrupo",      label: "Grupo" },
+            { key: "responsableEntrega", label: "Entregó" },
+            { key: "responsableRecepcion", label: "Recibió" },
+            { key: "estado",       label: "Estado" },
+            { key: "fechaRetorno", label: "Retorno" },
+            { key: "motivo",       label: "Motivo" },
+            { key: "observacion",  label: "Observación" }
+          ],
+          rows: rows.map(row => ({
+            ...row,
+            tipo: renderTipoBadge(row.tipo),
+            estado: renderEstadoBadge(row.estado),
+            responsableEntrega: renderUsuarioTexto(row.responsableEntrega),
+            responsableRecepcion: renderUsuarioTexto(row.responsableRecepcion),
+            fechaRetorno: row.fechaRetorno || '<span class="text-slate-300">—</span>',
+            observacion: row.observacion?.length > 50 ? row.observacion.substring(0, 50) + "..." : (row.observacion || '<span class="text-slate-300">—</span>')
+          })),
+          emptyText: "No se encontraron salidas con los filtros seleccionados"
+        });
+      }
+    }
+
+    // 6. Configurar event listeners
+    const filterIds = [
+      "filtro-salida-texto", "filtro-salida-tipo", "filtro-salida-estado",
+      "filtro-salida-destino", "filtro-salida-responsable", "filtro-salida-grupo",
+      "filtro-salida-desde", "filtro-salida-hasta", "filtro-salida-activo", "filtro-salida-orden"
     ];
 
-    kpiNode.innerHTML = cards.map((card) => `
-      <div class="mov-kpi mov-kpi--${card.type}">
-        <div class="mov-kpi__glow"></div>
-        <div class="mov-kpi__content">
-          <div>
-            <p class="mov-kpi__label">${card.label}</p>
-            <p class="mov-kpi__value">${card.value}</p>
-          </div>
-          <span class="mov-kpi__icon">${icon(card.iconName, "w-5 h-5")}</span>
-        </div>
-      </div>
-    `).join("");
-  }
-
-  function render() {
-    const rows = filtrarRows();
-    renderResumen(rows);
-    totalNode.textContent = `${rows.length} salida${rows.length !== 1 ? "s" : ""} encontrada${rows.length !== 1 ? "s" : ""}`;
-
-    tableNode.innerHTML = renderTable({
-      columns: [
-        { key: "fechaSalida",  label: "Fecha Salida" },
-        { key: "horaSalida",   label: "Hora" },
-        { key: "rotulo",       label: "Rótulo" },
-        { key: "tipo",         label: "Tipo" },
-        { key: "destino",      label: "Destino" },
-        { key: "idGrupo",      label: "Grupo" },
-        { key: "responsableEntrega", label: "Entregó" },
-        { key: "responsableRecepcion", label: "Recibió" },
-        { key: "estado",       label: "Estado" },
-        { key: "fechaRetorno", label: "Retorno" },
-        { key: "motivo",       label: "Motivo" },
-        { key: "observacion",  label: "Observación" }
-      ],
-      rows: rows.map(row => ({
-        ...row,
-        tipo: renderTipoBadge(row.tipo),
-        estado: renderEstadoBadge(row.estado),
-        responsableEntrega: renderUsuarioTexto(row.responsableEntrega),
-        responsableRecepcion: renderUsuarioTexto(row.responsableRecepcion),
-        fechaRetorno: row.fechaRetorno || '<span class="text-slate-300">—</span>',
-        observacion: row.observacion?.length > 50 ? row.observacion.substring(0, 50) + "..." : row.observacion
-      })),
-      emptyText: "No se encontraron salidas con los filtros seleccionados"
-    });
-  }
-
-  [
-    "filtro-salida-texto", "filtro-salida-tipo", "filtro-salida-estado",
-    "filtro-salida-destino", "filtro-salida-responsable", "filtro-salida-grupo",
-    "filtro-salida-desde", "filtro-salida-hasta", "filtro-salida-activo", "filtro-salida-orden"
-  ].forEach(id => {
-    document.getElementById(id)?.addEventListener("input", render);
-    document.getElementById(id)?.addEventListener("change", render);
-  });
-
-  document.getElementById("btn-limpiar-filtros")?.addEventListener("click", () => {
-    ["filtro-salida-texto", "filtro-salida-tipo", "filtro-salida-estado",
-     "filtro-salida-destino", "filtro-salida-responsable", "filtro-salida-grupo",
-     "filtro-salida-desde", "filtro-salida-hasta"].forEach(id => {
+    filterIds.forEach(id => {
       const el = document.getElementById(id);
-      if (el) el.value = "";
+      if (el) {
+        el.addEventListener("input", render);
+        el.addEventListener("change", render);
+      }
     });
-    const activo = document.getElementById("filtro-salida-activo");
-    if (activo) activo.checked = false;
-    const orden = document.getElementById("filtro-salida-orden");
-    if (orden) orden.value = "reciente";
-    render();
-  });
 
-  render();
+    const btnLimpiar = document.getElementById("btn-limpiar-filtros");
+    if (btnLimpiar) {
+      btnLimpiar.addEventListener("click", () => {
+        const ids = [
+          "filtro-salida-texto", "filtro-salida-tipo", "filtro-salida-estado",
+          "filtro-salida-destino", "filtro-salida-responsable", "filtro-salida-grupo",
+          "filtro-salida-desde", "filtro-salida-hasta"
+        ];
+        ids.forEach(id => {
+          const el = document.getElementById(id);
+          if (el) el.value = "";
+        });
+        
+        const activo = document.getElementById("filtro-salida-activo");
+        if (activo) activo.checked = false;
+        
+        const orden = document.getElementById("filtro-salida-orden");
+        if (orden) orden.value = "reciente";
+        
+        render();
+      });
+    }
+
+    // 7. Render inicial con datos reales
+    render();
+
+  } catch (error) {
+    console.error("Error cargando salidas de archivo:", error);
+    
+    // Mostrar mensaje de error
+    const tableNode = document.getElementById("salidas-table");
+    const totalNode = document.getElementById("salidas-total");
+    const kpiNode = document.getElementById("salidas-kpis");
+    
+    if (kpiNode) {
+      kpiNode.innerHTML = `
+        <div class="col-span-full text-center py-4 text-red-600">
+          ❌ Error al cargar estadísticas
+        </div>
+      `;
+    }
+    
+    if (totalNode) {
+      totalNode.textContent = "Error al cargar datos";
+    }
+    
+    if (tableNode) {
+      tableNode.innerHTML = `
+        <div class="text-center py-8 text-red-600">
+          <p class="font-semibold">❌ Error al cargar las salidas</p>
+          <p class="text-sm mt-2">${error.message || "Error de conexión con el servidor"}</p>
+          <button onclick="location.reload()" class="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition">
+            Reintentar
+          </button>
+        </div>
+      `;
+    }
+  }
 }
 
 // ===================== HELPERS =====================
@@ -251,10 +320,13 @@ function renderKpiSkeleton() {
     { label: "Pendientes", iconName: "clock", type: "dark" }
   ];
   return cards.map(c => `
-    <div class="mov-kpi mov-kpi--${c.type} mov-kpi-loading">
+    <div class="mov-kpi mov-kpi--${c.type}" style="opacity: 0.7;">
       <div class="mov-kpi__glow"></div>
       <div class="mov-kpi__content">
-        <div><p class="mov-kpi__label">${c.label}</p><p class="mov-kpi__value">...</p></div>
+        <div>
+          <p class="mov-kpi__label">${c.label}</p>
+          <p class="mov-kpi__value animate-pulse">...</p>
+        </div>
         <span class="mov-kpi__icon">${icon(c.iconName, "w-5 h-5")}</span>
       </div>
     </div>
@@ -262,14 +334,20 @@ function renderKpiSkeleton() {
 }
 
 function renderTableSkeleton() {
-  return `<div class="space-y-2">${Array.from({ length: 8 }).map(() => `<div class="h-10 rounded-lg bg-slate-200 animate-pulse"></div>`).join("")}</div>`;
+  return `<div class="space-y-2">${Array.from({ length: 8 }).map(() => `<div class="h-12 rounded-lg bg-gradient-to-r from-slate-100 to-slate-200 animate-pulse"></div>`).join("")}</div>`;
 }
 
-function valor(id) { return document.getElementById(id)?.value || ""; }
+function valor(id) { 
+  return document.getElementById(id)?.value || ""; 
+}
 
-function normalizarTexto(valor = "") { return String(valor).trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ""); }
+function normalizarTexto(valor = "") { 
+  return String(valor).trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ""); 
+}
 
-function obtenerUnicos(rows, key) { return [...new Set(rows.map(item => item[key]).filter(Boolean))]; }
+function obtenerUnicos(rows, key) { 
+  return [...new Set(rows.map(item => item[key]).filter(Boolean))]; 
+}
 
 function cargarSelect(id, items, formatter = (x) => x) {
   const select = document.getElementById(id);
@@ -286,7 +364,8 @@ function convertirFecha(fechaString) {
     const [dia, mes, anio] = texto.substring(0, 10).split("/");
     return new Date(`${anio}-${mes}-${dia}`);
   }
-  return null;
+  const fecha = new Date(texto);
+  return isNaN(fecha.getTime()) ? null : fecha;
 }
 
 function cumpleRangoFecha(fecha, desde, hasta) {
@@ -299,9 +378,15 @@ function cumpleRangoFecha(fecha, desde, hasta) {
 
 function ordenarRows(rows, orden) {
   const copia = [...rows];
-  if (orden === "antiguo") return copia.sort((a, b) => (convertirFecha(a.fechaSalida) || new Date(0)) - (convertirFecha(b.fechaSalida) || new Date(0)));
-  if (orden === "tipo") return copia.sort((a, b) => String(a.tipo).localeCompare(String(b.tipo)));
-  if (orden === "estado") return copia.sort((a, b) => String(a.estado).localeCompare(String(b.estado)));
+  if (orden === "antiguo") {
+    return copia.sort((a, b) => (convertirFecha(a.fechaSalida) || new Date(0)) - (convertirFecha(b.fechaSalida) || new Date(0)));
+  }
+  if (orden === "tipo") {
+    return copia.sort((a, b) => String(a.tipo || '').localeCompare(String(b.tipo || '')));
+  }
+  if (orden === "estado") {
+    return copia.sort((a, b) => String(a.estado || '').localeCompare(String(b.estado || '')));
+  }
   return copia.sort((a, b) => (convertirFecha(b.fechaSalida) || new Date(0)) - (convertirFecha(a.fechaSalida) || new Date(0)));
 }
 
@@ -312,7 +397,7 @@ function renderTipoBadge(tipo) {
     "SALIDA_EXTERNA": "mov-badge mov-badge--accent",
     "ENVIO_DEFINITIVO": "mov-badge mov-badge--dark"
   };
-  return `<span class="${tipos[tipo] || 'mov-badge mov-badge--muted'}">${escapeHtml(tipo)}</span>`;
+  return `<span class="${tipos[tipo] || 'mov-badge mov-badge--muted'}">${escapeHtml(tipo || '-')}</span>`;
 }
 
 function renderEstadoBadge(estado) {
@@ -323,7 +408,7 @@ function renderEstadoBadge(estado) {
     "DEVUELTO": "mov-badge mov-badge--accent",
     "ENVIADO_DEFINITIVO": "mov-badge mov-badge--dark"
   };
-  return `<span class="${estados[estado] || 'mov-badge mov-badge--muted'}">${escapeHtml(estado)}</span>`;
+  return `<span class="${estados[estado] || 'mov-badge mov-badge--muted'}">${escapeHtml(estado || '-')}</span>`;
 }
 
 function renderUsuarioTexto(texto) {
@@ -332,7 +417,12 @@ function renderUsuarioTexto(texto) {
 }
 
 function escapeHtml(value = "") {
-  return String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#039;");
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
 }
 
 function agregarEstiloFiltros() {

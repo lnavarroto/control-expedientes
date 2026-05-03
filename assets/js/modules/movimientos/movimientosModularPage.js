@@ -3,6 +3,7 @@ import { expedienteService } from "../../services/expedienteService.js";
 import { icon } from "../../components/icons.js";
 
 export async function initMovimientosModularPage({ mountNode }) {
+  // Mostrar skeleton INMEDIATAMENTE
   mountNode.innerHTML = `
     <section class="space-y-5">
       <div class="rounded-2xl p-5 text-white shadow-lg"
@@ -90,7 +91,7 @@ export async function initMovimientosModularPage({ mountNode }) {
             <span class="w-1.5 h-5 bg-blue-500 rounded-full"></span>
             Registro de movimientos
           </h2>
-          <span class="text-xs text-slate-500" id="movimientos-total"></span>
+          <span class="text-xs text-slate-500" id="movimientos-total">Cargando...</span>
         </div>
 
         <div class="p-5" id="movimientos-table">
@@ -104,160 +105,189 @@ export async function initMovimientosModularPage({ mountNode }) {
 
   await new Promise(resolve => requestAnimationFrame(resolve));
 
-  const resultado = await expedienteService.listarMovimientosActivos();
-
-  const data = normalizarMovimientos(resultado || []);
-
-  const usuarios = obtenerUnicos(data, "realizadoPor");
-  const origenes = obtenerUnicos(data, "origen");
-  const destinos = obtenerUnicos(data, "destino");
-
-  cargarSelect("filtro-mov-usuario", usuarios, limpiarUsuario);
-  cargarSelect("filtro-mov-origen", origenes);
-  cargarSelect("filtro-mov-destino", destinos);
-
-  const kpiNode = document.getElementById("movimientos-kpis");
-  const tableNode = document.getElementById("movimientos-table");
+  // Mostrar indicador de carga en el total
   const totalNode = document.getElementById("movimientos-total");
+  if (totalNode) totalNode.textContent = "Cargando movimientos...";
 
+  try {
+    // Cargar datos reales
+    const resultado = await expedienteService.listarMovimientosActivos();
 
-  function filtrarRows() {
-    const texto = normalizarTexto(valor("filtro-mov-texto"));
-    const tipo = valor("filtro-mov-tipo");
-    const usuario = valor("filtro-mov-usuario");
-    const origen = valor("filtro-mov-origen");
-    const destino = valor("filtro-mov-destino");
-    const expediente = normalizarTexto(valor("filtro-mov-expediente"));
-    const desde = valor("filtro-mov-desde");
-    const hasta = valor("filtro-mov-hasta");
-    const soloHoy = document.getElementById("filtro-mov-hoy")?.checked;
-    const orden = valor("filtro-mov-orden");
+    const data = normalizarMovimientos(resultado || []);
 
-    let rows = data.filter((row) => {
-      const bolsa = normalizarTexto(`
-        ${row.fecha}
-        ${row.hora}
-        ${row.numeroExpediente}
-        ${row.tipo}
-        ${row.origen}
-        ${row.destino}
-        ${row.realizadoPor}
-        ${row.motivo}
-        ${row.observacion}
-      `);
+    const usuarios = obtenerUnicos(data, "realizadoPor");
+    const origenes = obtenerUnicos(data, "origen");
+    const destinos = obtenerUnicos(data, "destino");
 
-      return (!texto || bolsa.includes(texto))
-        && (!tipo || row.tipo?.toUpperCase() === tipo.toUpperCase())
-        && (!usuario || row.realizadoPor === usuario)
-        && (!origen || row.origen === origen)
-        && (!destino || row.destino === destino)
-        && (!expediente || normalizarTexto(row.numeroExpediente).includes(expediente))
-        && (!soloHoy || esMismoDia(row.fecha))
-        && cumpleRangoFecha(row.fecha, desde, hasta);
-    });
+    cargarSelect("filtro-mov-usuario", usuarios, limpiarUsuario);
+    cargarSelect("filtro-mov-origen", origenes);
+    cargarSelect("filtro-mov-destino", destinos);
 
-    rows = ordenarRows(rows, orden);
-    return rows;
-  }
+    const kpiNode = document.getElementById("movimientos-kpis");
+    const tableNode = document.getElementById("movimientos-table");
 
-  function renderResumen(rows) {
-    const resumen = {
-      total: rows.length,
-      hoy: rows.filter((r) => esMismoDia(r.fecha)).length,
-      traslados: rows.filter((r) => r.tipo?.toUpperCase().includes("TRASLADO")).length,
-      prestamos: rows.filter((r) => r.tipo?.toUpperCase().includes("PRESTAMO") || r.tipo?.toUpperCase().includes("SALIDA")).length,
-      retornos: rows.filter((r) => r.tipo?.toUpperCase().includes("RETORNO") || r.tipo?.toUpperCase().includes("DEVOLUCION")).length
-    };
+    function filtrarRows() {
+      const texto = normalizarTexto(valor("filtro-mov-texto"));
+      const tipo = valor("filtro-mov-tipo");
+      const usuario = valor("filtro-mov-usuario");
+      const origen = valor("filtro-mov-origen");
+      const destino = valor("filtro-mov-destino");
+      const expediente = normalizarTexto(valor("filtro-mov-expediente"));
+      const desde = valor("filtro-mov-desde");
+      const hasta = valor("filtro-mov-hasta");
+      const soloHoy = document.getElementById("filtro-mov-hoy")?.checked;
+      const orden = valor("filtro-mov-orden");
 
-    const cards = [
-      { label: "Total", value: resumen.total, iconName: "list", type: "brand" },
-      { label: "Hoy", value: resumen.hoy, iconName: "calendar", type: "accent" },
-      { label: "Traslados", value: resumen.traslados, iconName: "truck", type: "soft" },
-      { label: "Préstamos", value: resumen.prestamos, iconName: "users", type: "warning" },
-      { label: "Retornos", value: resumen.retornos, iconName: "rotateCcw", type: "dark" }
-    ];
+      let rows = data.filter((row) => {
+        const bolsa = normalizarTexto(`
+          ${row.fecha}
+          ${row.hora}
+          ${row.numeroExpediente}
+          ${row.tipo}
+          ${row.origen}
+          ${row.destino}
+          ${row.realizadoPor}
+          ${row.motivo}
+          ${row.observacion}
+        `);
 
-    kpiNode.innerHTML = cards.map((card) => `
-      <div class="mov-kpi mov-kpi--${card.type}">
-        <div class="mov-kpi__glow"></div>
-        <div class="mov-kpi__content">
-          <div>
-            <p class="mov-kpi__label">${card.label}</p>
-            <p class="mov-kpi__value">${card.value}</p>
+        return (!texto || bolsa.includes(texto))
+          && (!tipo || row.tipo?.toUpperCase() === tipo.toUpperCase())
+          && (!usuario || row.realizadoPor === usuario)
+          && (!origen || row.origen === origen)
+          && (!destino || row.destino === destino)
+          && (!expediente || normalizarTexto(row.numeroExpediente).includes(expediente))
+          && (!soloHoy || esMismoDia(row.fecha))
+          && cumpleRangoFecha(row.fecha, desde, hasta);
+      });
+
+      rows = ordenarRows(rows, orden);
+      return rows;
+    }
+
+    function renderResumen(rows) {
+      const resumen = {
+        total: rows.length,
+        hoy: rows.filter((r) => esMismoDia(r.fecha)).length,
+        traslados: rows.filter((r) => r.tipo?.toUpperCase().includes("TRASLADO")).length,
+        prestamos: rows.filter((r) => r.tipo?.toUpperCase().includes("PRESTAMO") || r.tipo?.toUpperCase().includes("SALIDA")).length,
+        retornos: rows.filter((r) => r.tipo?.toUpperCase().includes("RETORNO") || r.tipo?.toUpperCase().includes("DEVOLUCION")).length
+      };
+
+      const cards = [
+        { label: "Total", value: resumen.total, iconName: "list", type: "brand" },
+        { label: "Hoy", value: resumen.hoy, iconName: "calendar", type: "accent" },
+        { label: "Traslados", value: resumen.traslados, iconName: "truck", type: "soft" },
+        { label: "Préstamos", value: resumen.prestamos, iconName: "users", type: "warning" },
+        { label: "Retornos", value: resumen.retornos, iconName: "rotateCcw", type: "dark" }
+      ];
+
+      kpiNode.innerHTML = cards.map((card) => `
+        <div class="mov-kpi mov-kpi--${card.type}">
+          <div class="mov-kpi__glow"></div>
+          <div class="mov-kpi__content">
+            <div>
+              <p class="mov-kpi__label">${card.label}</p>
+              <p class="mov-kpi__value">${card.value}</p>
+            </div>
+            <span class="mov-kpi__icon">${icon(card.iconName, "w-5 h-5")}</span>
           </div>
-          <span class="mov-kpi__icon">${icon(card.iconName, "w-5 h-5")}</span>
         </div>
-      </div>
-    `).join("");
-  }
+      `).join("");
+    }
 
-  function render() {
-    const rows = filtrarRows();
+    function render() {
+      const rows = filtrarRows();
 
-    renderResumen(rows);
+      renderResumen(rows);
 
-    totalNode.textContent = `${rows.length} movimiento${rows.length !== 1 ? "s" : ""} encontrado${rows.length !== 1 ? "s" : ""}`;
+      if (totalNode) {
+        totalNode.textContent = `${rows.length} movimiento${rows.length !== 1 ? "s" : ""} encontrado${rows.length !== 1 ? "s" : ""}`;
+      }
 
-    tableNode.innerHTML = renderTable({
-      columns: [
-        { key: "fecha", label: "Fecha" },
-        { key: "hora", label: "Hora" },
-        { key: "tipo", label: "Tipo" },
-        { key: "numeroExpediente", label: "Expediente" },
-        { key: "origen", label: "Origen" },
-        { key: "destino", label: "Destino" },
-        { key: "estadoAnterior", label: "Estado Ant." },
-        { key: "estadoNuevo", label: "Estado Nuevo" },
-        { key: "realizadoPor", label: "Realizado por" },
-        { key: "motivo", label: "Motivo" },
-        { key: "observacion", label: "Observación" }
-      ],
-      rows: rows.map((row) => ({
-        ...row,
-        tipo: renderTipoBadge(row.tipo),
-        numeroExpediente: renderExpediente(row.numeroExpediente),
-        realizadoPor: renderUsuarioTexto(row.realizadoPor),
-        estadoAnterior: renderBadge(row.estadoAnterior, "blue"),
-        estadoNuevo: renderBadge(row.estadoNuevo, "green"),
-        observacion: renderObservacion(row.observacion)
-      })),
-      emptyText: "No se encontraron movimientos con los filtros seleccionados"
-    });
-  }
+      tableNode.innerHTML = renderTable({
+        columns: [
+          { key: "fecha", label: "Fecha" },
+          { key: "hora", label: "Hora" },
+          { key: "tipo", label: "Tipo" },
+          { key: "numeroExpediente", label: "Expediente" },
+          { key: "origen", label: "Origen" },
+          { key: "destino", label: "Destino" },
+          { key: "estadoAnterior", label: "Estado Ant." },
+          { key: "estadoNuevo", label: "Estado Nuevo" },
+          { key: "realizadoPor", label: "Realizado por" },
+          { key: "motivo", label: "Motivo" },
+          { key: "observacion", label: "Observación" }
+        ],
+        rows: rows.map((row) => ({
+          ...row,
+          tipo: renderTipoBadge(row.tipo),
+          numeroExpediente: renderExpediente(row.numeroExpediente),
+          realizadoPor: renderUsuarioTexto(row.realizadoPor),
+          estadoAnterior: renderBadge(row.estadoAnterior, "blue"),
+          estadoNuevo: renderBadge(row.estadoNuevo, "green"),
+          observacion: renderObservacion(row.observacion)
+        })),
+        emptyText: "No se encontraron movimientos con los filtros seleccionados"
+      });
+    }
 
-  [
-    "filtro-mov-texto", "filtro-mov-tipo", "filtro-mov-usuario",
-    "filtro-mov-origen", "filtro-mov-destino", "filtro-mov-expediente",
-    "filtro-mov-desde", "filtro-mov-hasta", "filtro-mov-hoy", "filtro-mov-orden"
-  ].forEach((id) => {
-    document.getElementById(id)?.addEventListener("input", render);
-    document.getElementById(id)?.addEventListener("change", render);
-  });
-
-  document.getElementById("btn-limpiar-filtros")?.addEventListener("click", () => {
+    // Event listeners
     [
       "filtro-mov-texto", "filtro-mov-tipo", "filtro-mov-usuario",
       "filtro-mov-origen", "filtro-mov-destino", "filtro-mov-expediente",
-      "filtro-mov-desde", "filtro-mov-hasta"
+      "filtro-mov-desde", "filtro-mov-hasta", "filtro-mov-hoy", "filtro-mov-orden"
     ].forEach((id) => {
-      const el = document.getElementById(id);
-      if (el) el.value = "";
+      document.getElementById(id)?.addEventListener("input", render);
+      document.getElementById(id)?.addEventListener("change", render);
     });
 
-    const hoy = document.getElementById("filtro-mov-hoy");
-    if (hoy) hoy.checked = false;
+    document.getElementById("btn-limpiar-filtros")?.addEventListener("click", () => {
+      [
+        "filtro-mov-texto", "filtro-mov-tipo", "filtro-mov-usuario",
+        "filtro-mov-origen", "filtro-mov-destino", "filtro-mov-expediente",
+        "filtro-mov-desde", "filtro-mov-hasta"
+      ].forEach((id) => {
+        const el = document.getElementById(id);
+        if (el) el.value = "";
+      });
 
-    const orden = document.getElementById("filtro-mov-orden");
-    if (orden) orden.value = "reciente";
+      const hoy = document.getElementById("filtro-mov-hoy");
+      if (hoy) hoy.checked = false;
 
+      const orden = document.getElementById("filtro-mov-orden");
+      if (orden) orden.value = "reciente";
+
+      render();
+    });
+
+    // Render inicial con datos reales
     render();
-  });
-
-  render();
+    
+  } catch (error) {
+    console.error("Error cargando movimientos:", error);
+    
+    // Mostrar mensaje de error en lugar del skeleton
+    const tableNode = document.getElementById("movimientos-table");
+    if (tableNode) {
+      tableNode.innerHTML = `
+        <div class="text-center py-8 text-red-600">
+          <p class="font-semibold">Error al cargar movimientos</p>
+          <p class="text-sm mt-2">${error.message}</p>
+          <button onclick="location.reload()" class="mt-4 btn btn-primary text-sm">
+            Reintentar
+          </button>
+        </div>
+      `;
+    }
+    
+    const totalNode = document.getElementById("movimientos-total");
+    if (totalNode) totalNode.textContent = "Error al cargar";
+  }
 }
 
 // =====================
-// HELPERS (mismos que tu movimientosPage.js)
+// HELPERS (tus mismos helpers)
 // =====================
 
 function renderKpiSkeleton() {
@@ -275,7 +305,7 @@ function renderKpiSkeleton() {
       <div class="mov-kpi__content">
         <div>
           <p class="mov-kpi__label">${card.label}</p>
-          <p class="mov-kpi__value">...</p>
+          <p class="mov-kpi__value animate-pulse">...</p>
         </div>
         <span class="mov-kpi__icon">${icon(card.iconName, "w-5 h-5")}</span>
       </div>
@@ -287,7 +317,7 @@ function renderTableSkeleton() {
   return `
     <div class="space-y-2">
       ${Array.from({ length: 8 }).map(() => `
-        <div class="h-10 rounded-lg bg-slate-200 animate-pulse"></div>
+        <div class="h-12 rounded-lg bg-gradient-to-r from-slate-100 to-slate-200 animate-pulse"></div>
       `).join("")}
     </div>
   `;

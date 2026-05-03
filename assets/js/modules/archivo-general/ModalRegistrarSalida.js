@@ -28,10 +28,10 @@ function _obtenerRealizadoPor(usuario) {
 
 const SALIDA_RULES = {
   // Para PAQUETES (flujo simple)
-  PARA_ARCHIVO: {
-    destinos: ["ESPECIALISTA", "ASISTENTE"],
-    motivos: ["ORDENAMIENTO", "ARCHIVO"],
-    estados: ["PENDIENTE", "EN_PROCESO"]
+PARA_ARCHIVO: {
+  destinos: ["MODULO_CIVIL", "MODULO_LABORAL", "MESA_DE_PARTES", "SALA_SUPERIOR"],
+  motivos: ["ORDENAMIENTO", "ARCHIVO"],
+  estados: ["ENTREGADO"]
   },
   // Para EXPEDIENTES (flujo complejo)
   PRESTAMO: {
@@ -218,7 +218,7 @@ export async function abrirModalRegistrarSalida(id_grupo, tipoObjeto = 'expedien
 
         const response = await archivoGeneralService.registrarSalida({
           id_grupo,
-          tipo_salida: tipoSalida,
+        tipo_salida: "ENVIO_DEFINITIVO", 
           destino_salida: destino,
           responsable_entrega: responsableEntrega,
           responsable_recepcion: responsableRecepcion,
@@ -266,33 +266,23 @@ export async function abrirModalRegistrarSalida(id_grupo, tipoObjeto = 'expedien
   };
 
   if (selectTipoSalida && selectDestinoSalida && selectMotivoSalida && selectEstadoSalida) {
-    const poblarResponsablesPaquete = () => {
-      if (!esPaquete || !selectResponsableRecepcion) return;
-      const tipoDestino = String(selectDestinoSalida.value || "").trim().toUpperCase();
+   const poblarResponsablesPaquete = () => {
+  if (!esPaquete || !selectResponsableRecepcion) return;
+  
+  // Mostrar TODOS los responsables (especialistas + asistentes)
+  const filtrados = responsables || [];
 
-      const filtrados = (responsables || []).filter((item) => {
-        const idRol = String(item.id_rol || "").trim().toUpperCase();
-        const cargo = String(item.cargo || "").trim().toUpperCase();
-        if (tipoDestino === "ESPECIALISTA") {
-          return idRol === "ROL0005" || cargo.includes("ESPECIALISTA");
-        }
-        if (tipoDestino === "ASISTENTE") {
-          return idRol === "ROL0006" || cargo.includes("ASISTENTE");
-        }
-        return true;
-      });
+  const options = filtrados.map((item) => {
+    const nombre = String(item.nombre_completo || [item.nombres, item.apellidos].filter(Boolean).join(" ") || "").trim();
+    const cargo = String(item.cargo || "").trim();
+    const valor = [String(item.id_usuario || "").trim(), nombre].filter(Boolean).join(" - ");
+    const label = cargo ? `${nombre} (${cargo})` : nombre;
+    return `<option value="${_escapeHtml(valor)}">${_escapeHtml(label)}</option>`;
+  }).join("");
 
-      const options = filtrados.map((item) => {
-        const nombre = String(item.nombre_completo || [item.nombres, item.apellidos].filter(Boolean).join(" ") || "").trim();
-        const cargo = String(item.cargo || "").trim();
-        const valor = [String(item.id_usuario || "").trim(), nombre].filter(Boolean).join(" - ");
-        const label = cargo ? `${nombre} (${cargo})` : nombre;
-        return `<option value="${_escapeHtml(valor)}">${_escapeHtml(label)}</option>`;
-      }).join("");
-
-      selectResponsableRecepcion.innerHTML = `<option value="">-- Seleccionar receptor --</option>${options}`;
-      selectResponsableRecepcion.disabled = filtrados.length === 0;
-    };
+  selectResponsableRecepcion.innerHTML = `<option value="">-- Seleccionar receptor --</option>${options}`;
+  selectResponsableRecepcion.disabled = filtrados.length === 0;
+};
 
     // Función para actualizar selects dependientes
     const actualizarOpciones = () => {
@@ -317,7 +307,7 @@ export async function abrirModalRegistrarSalida(id_grupo, tipoObjeto = 'expedien
       if (tipo === "ENVIO_DEFINITIVO") {
         selectEstadoSalida.value = "ENVIADO_DEFINITIVO";
       } else {
-        selectEstadoSalida.value = "PENDIENTE";
+        selectEstadoSalida.value = "ENTREGADO";
       }
 
       poblarResponsablesPaquete();

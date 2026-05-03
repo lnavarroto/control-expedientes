@@ -17,10 +17,13 @@ import { appConfig } from "../config.js";
 const CACHE_EXPEDIENTES_BACKEND = "expedientes_backend_cache";
 const CACHE_TIMESTAMP_EXPEDIENTES = "expedientes_backend_tiempo";
 const CACHE_SEGUIMIENTOS_BACKEND = "seguimientos_backend_cache";
-const CACHE_TIME = 300000; // 5 minutos
 const CACHE_CATALOGOS = "catalogos_cache";
 const CACHE_CATALOGOS_TIMESTAMP = "catalogos_cache_tiempo";
-const CACHE_CATALOGOS_TIME = 300000; // 5 minutos para catálogos
+
+// Tiempos de caché diferenciados
+const CACHE_EXPEDIENTES_TIME = 1800000;  // 30 minutos para expedientes
+const CACHE_CATALOGOS_TIME = 3600000;    // 1 hora para catálogos (cambian poco)
+
 let inFlightListarBackend = null;
 
 // =============================
@@ -412,7 +415,7 @@ _registrarMovimientoLocal({ expedienteId, numeroExpediente, origen, destino, mot
   async listarDelBackend({ forceRefresh = false } = {}) {
     const timestamp = Number(localStorage.getItem(CACHE_TIMESTAMP_EXPEDIENTES) || 0);
     const cacheCrudo = localStorage.getItem(CACHE_EXPEDIENTES_BACKEND);
-    const cacheValido = Boolean(cacheCrudo) && (Date.now() - timestamp) < CACHE_TIME;
+    const cacheValido = Boolean(cacheCrudo) && (Date.now() - timestamp) < CACHE_EXPEDIENTES_TIME;
 
     if (!forceRefresh && cacheValido) {
       return { success: true, data: JSON.parse(cacheCrudo) };
@@ -460,7 +463,7 @@ _registrarMovimientoLocal({ expedienteId, numeroExpediente, origen, destino, mot
   listarDelBackendSync() {
     const timestamp = localStorage.getItem(CACHE_TIMESTAMP_EXPEDIENTES);
     const ahora = Date.now();
-    const cacheValido = timestamp && ahora - parseInt(timestamp) < CACHE_TIME;
+    const cacheValido = timestamp && ahora - parseInt(timestamp) < CACHE_EXPEDIENTES_TIME;
 
     if (cacheValido) {
       const cached = localStorage.getItem(CACHE_EXPEDIENTES_BACKEND);
@@ -593,6 +596,71 @@ _registrarMovimientoLocal({ expedienteId, numeroExpediente, origen, destino, mot
       console.error("Error actualizando expediente:", error);
       return { success: false, message: error.message };
     }
+  },
+/**
+ * Obtener expedientes ligeros del backend (solo campos esenciales, más rápido)
+ */
+async listarLigeroDelBackend({ forceRefresh = false } = {}) {
+  const cacheKey = "expedientes_ligeros_cache";
+  const cacheTimeKey = "expedientes_ligeros_tiempo";
+  
+  const timestamp = Number(localStorage.getItem(cacheTimeKey) || 0);
+  const cacheValido = !forceRefresh && (Date.now() - timestamp) < CACHE_EXPEDIENTES_TIME;
+  
+  if (cacheValido) {
+    const cached = localStorage.getItem(cacheKey);
+    if (cached) {
+      console.log("⚡ Expedientes ligeros desde caché local");
+      return { success: true, data: JSON.parse(cached) };
+    }
   }
-
+  
+  try {
+    const url = `${appConfig.googleSheetURL}?action=listar_expedientes_ligero&_ts=${Date.now()}`;
+    const response = await fetch(url);
+    const result = await response.json();
+    
+    if (result.success && Array.isArray(result.data)) {
+      localStorage.setItem(cacheKey, JSON.stringify(result.data));
+      localStorage.setItem(cacheTimeKey, Date.now().toString());
+      console.log(`✅ ${result.data.length} expedientes ligeros obtenidos`);
+    }
+    
+    return result;
+  } catch (error) {
+    console.error("Error obteniendo expedientes ligeros:", error);
+    return { success: false, data: [], message: error.message };
+  }
+},
+async listarPaginadoDelBackend({ pagina = 1, limite = 25, filtro = "", forceRefresh = false } = {}) {
+  const cacheKey = `expedientes_pag_${pagina}_${limite}_${filtro}`;
+  
+  // Usar sessionStorage (se limpia al cerrar pestaña, más ligero)
+  if (!forceRefresh) {
+    const cached = sessionStorage.getItem(cacheKey);
+    if (cached) {
+      console.log(`⚡ Página ${pagina} desde caché de sesión`);
+      return JSON.parse(cached);
+    }
+  }
+  
+  try {
+    let url = `${appConfig.googleSheetURL}?action=listar_expedientes_paginado&pagina=${pagina}&limite=${limite}`;
+    if (filtro) url += `&filtro=${encodeURIComponent(filtro)}`;
+    
+    const response = await fetch(url);
+    const result = await response.json();
+    
+    if (result.success) {
+      // Guardar en sessionStorage por 2 minutos
+      sessionStorage.setItem(cacheKey, JSON.stringify(result));
+      console.log(`✅ Página ${pagina}/${result.totalPaginas}: ${result.data.length} de ${result.total} expedientes`);
+    }
+    
+    return result;
+  } catch (error) {
+    console.error("Error en paginación:", error);
+    return { success: false, data: [], total: 0, error: error.message };
+  }
+}
 }; // ← ÚNICO CIERRE DEL OBJETO

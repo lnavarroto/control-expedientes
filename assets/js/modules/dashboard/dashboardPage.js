@@ -1,8 +1,13 @@
-﻿import { expedienteService } from "../../services/expedienteService.js";
+﻿// pages/dashboard.js
+import { expedienteService } from "../../services/expedienteService.js";
 import { navegarA } from "../../router.js";
 import { authManager } from "../../auth/authManager.js";
 import { icon } from "../../components/icons.js";
 import { CARD_TONES, ALERT_TONES } from "../../core/uiTokens.js";
+import { Loader } from "../../components/loader.js";
+
+// Variable para controlar el loader
+let dashboardLoaderId = null;
 
 export async function initDashboardPage({ mountNode }) {
   const normalizar = (valor = "") => String(valor)
@@ -45,12 +50,54 @@ export async function initDashboardPage({ mountNode }) {
   const obtenerInicioSemana = (fecha) => {
     const base = new Date(fecha.getFullYear(), fecha.getMonth(), fecha.getDate());
     const dia = base.getDay();
-    const ajuste = dia === 0 ? -6 : 1 - dia; // Lunes como inicio
+    const ajuste = dia === 0 ? -6 : 1 - dia;
     base.setDate(base.getDate() + ajuste);
     return base;
   };
 
+  /**
+   * Mostrar loader en el dashboard
+   */
+  function mostrarLoaderDashboard() {
+    // Limpiar contenido actual
+    mountNode.innerHTML = '';
+    
+    // Crear contenedor para el loader
+    const loaderContainer = document.createElement('div');
+    loaderContainer.id = 'dashboard-loader-container';
+    loaderContainer.style.cssText = 'min-height: 500px; display: flex; align-items: center; justify-content: center;';
+    mountNode.appendChild(loaderContainer);
+    
+    // Mostrar loader hermoso
+    dashboardLoaderId = Loader.show({
+      variante: 'expediente',
+      mensajes: [
+        'Cargando panel principal...',
+        'Analizando expedientes...',
+        'Calculando estadísticas...',
+        'Preparando accesos rápidos...',
+        '¡Casi listo!'
+      ],
+      submensaje: 'Por favor espere mientras cargamos su información',
+      overlay: false,
+      contenedor: loaderContainer
+    });
+  }
+
+  /**
+   * Ocultar loader del dashboard
+   */
+  function ocultarLoaderDashboard() {
+    if (dashboardLoaderId) {
+      Loader.hide(dashboardLoaderId);
+      dashboardLoaderId = null;
+    }
+  }
+
   function renderDashboard(expedientes) {
+    // Ocultar loader antes de renderizar
+    ocultarLoaderDashboard();
+    
     // Obtener datos del usuario
     const trabajador = authManager.getTrabajador();
     const nombreUsuario = trabajador?.nombres || "Usuario";
@@ -202,12 +249,14 @@ export async function initDashboardPage({ mountNode }) {
     });
   }
 
+  // Verificar caché primero (carga instantánea)
   const cachedExp = expedienteService.listarDelBackendSync();
   
   if (cachedExp.length > 0) {
     console.log("⚡ Dashboard: Mostrando datos del caché (carga rápida)");
     renderDashboard(cachedExp);
     
+    // Actualizar en segundo plano sin mostrar loader
     expedienteService.listarDelBackend()
       .then(resultado => {
         if (resultado.success && resultado.data) {
@@ -220,13 +269,15 @@ export async function initDashboardPage({ mountNode }) {
     return;
   }
 
-  mountNode.innerHTML = `<div class="text-center py-12"><p class="text-slate-500 font-medium mb-4">📊 Cargando datos del dashboard...</p><div class="inline-block"><div class="animate-spin w-8 h-8 border-4 border-slate-300 border-t-blue-500 rounded-full"></div></div></div>`;
+  // No hay caché, mostrar loader y cargar datos
+  mostrarLoaderDashboard();
 
   try {
     const resultado = await expedienteService.listarDelBackend();
     const expedientes = resultado.success ? resultado.data : [];
 
     if (!resultado.success || !resultado.data) {
+      ocultarLoaderDashboard();
       mountNode.innerHTML = `<div class="rounded-lg border-l-4 ${ALERT_TONES.warning.border} ${ALERT_TONES.warning.surface} p-6"><p class="font-semibold ${ALERT_TONES.warning.text}">Error al cargar expedientes</p><p class="text-sm text-amber-700 mt-2">No se pudo conectar con el backend. Intenta recargar.</p><button onclick="location.reload()" class="mt-4 btn btn-primary text-sm">Recargar</button></div>`;
       return;
     }
@@ -234,6 +285,7 @@ export async function initDashboardPage({ mountNode }) {
     renderDashboard(expedientes);
   } catch (error) {
     console.error("Error cargando datos del dashboard:", error);
+    ocultarLoaderDashboard();
     mountNode.innerHTML = `<div class="rounded-lg border-l-4 ${ALERT_TONES.danger.border} ${ALERT_TONES.danger.surface} p-6"><p class="font-semibold ${ALERT_TONES.danger.text}">Error al cargar dashboard</p><p class="text-sm text-red-700 mt-2">${error.message}</p><button onclick="location.reload()" class="mt-4 btn btn-primary text-sm">Recargar</button></div>`;
   }
 }

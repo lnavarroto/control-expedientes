@@ -3,7 +3,7 @@ import { openModal } from "../../components/modal.js";
 import { showToast } from "../../components/toast.js";
 import { icon } from "../../components/icons.js";
 import { expedienteService } from "../../services/expedienteService.js";
-import { ubicacionConfigService } from "../../services/ubicacionConfigService.js";
+import { ubicacionService } from "../../services/ubicacionService.js";
 import { estadoService } from "../../services/estadoService.js";
 import {
   paqueteService,
@@ -2501,139 +2501,139 @@ export async function initPaquetesPage({ mountNode }) {
     }, 0);
   };
 
-  const abrirModalAsignarUbicacionPaquete = (paqueteInicialId = "") => {
-    const ubicacionesActivas = ubicacionConfigService
-      .listar()
-      .filter((item) => item.activo)
-      .sort((a, b) => String(a.nombre || "").localeCompare(String(b.nombre || ""), "es"));
+ const abrirModalAsignarUbicacionPaquete = async (paqueteInicialId = "") => {
+    const ubicacionesResp = await ubicacionService.listarUbicaciones();
+    const ubicacionesActivas = (ubicacionesResp.data || [])
+        .filter((item) => item.activo === "SI")
+        .sort((a, b) => String(a.nombre_ubicacion || "").localeCompare(String(b.nombre_ubicacion || ""), "es"));
 
     openModal({
-      title: "Asignar ubicación a un paquete",
-      content: `
-        <div class="space-y-4">
-          <div class="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-800">
-            Selecciona un paquete del archivo modular, revisa sus expedientes y define la ubicación física donde será guardado.
-          </div>
+        title: "Asignar ubicación a un paquete",
+        content: `
+            <div class="space-y-4">
+                <div class="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-800">
+                    Selecciona un paquete del archivo modular, revisa sus expedientes y define la ubicación física donde será guardado.
+                </div>
 
-          <div class="grid gap-4 md:grid-cols-2">
-            <div>
-              <label class="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-2">Paquete</label>
-              <select id="modal-paquete-ubicacion" class="select-base w-full">
-                <option value="">-- Selecciona un paquete --</option>
-                ${(paquetesArchivo || []).map((item) => `<option value="${_escapeHtml(item.id_paquete_archivo || "")}" ${String(item.id_paquete_archivo || "") === String(paqueteInicialId || "") ? "selected" : ""}>${_escapeHtml(item.rotulo_paquete || item.id_paquete_archivo || "-")}</option>`).join("")}
-              </select>
-            </div>
-            <div>
-              <label class="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-2">Ubicación destino</label>
-              <select id="modal-ubicacion-paquete" class="select-base w-full">
-                <option value="">-- Selecciona ubicación --</option>
-                ${ubicacionesActivas.map((item) => `<option value="${_escapeHtml(item.nombre || item.codigo || "")}">${_escapeHtml(item.nombre || item.codigo || "-")}</option>`).join("")}
-              </select>
-            </div>
-          </div>
+                <div class="grid gap-4 md:grid-cols-2">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-2">Paquete</label>
+                        <select id="modal-paquete-ubicacion" class="select-base w-full">
+                            <option value="">-- Selecciona un paquete --</option>
+                            ${(paquetesArchivo || []).map((item) => `<option value="${_escapeHtml(item.id_paquete_archivo || "")}" ${String(item.id_paquete_archivo || "") === String(paqueteInicialId || "") ? "selected" : ""}>${_escapeHtml(item.rotulo_paquete || item.id_paquete_archivo || "-")}</option>`).join("")}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-2">Ubicación destino</label>
+                        <select id="modal-ubicacion-paquete" class="select-base w-full">
+                            <option value="">-- Selecciona ubicación --</option>
+                            ${ubicacionesActivas.map((item) => `<option value="${_escapeHtml(item.nombre_ubicacion || item.codigo_ubicacion || "")}">${_escapeHtml(item.nombre_ubicacion || item.codigo_ubicacion || "-")}</option>`).join("")}
+                        </select>
+                    </div>
+                </div>
 
-          <div class="rounded-xl border border-slate-200 bg-white p-4">
-            <div class="flex items-center justify-between gap-3 mb-3">
-              <h4 class="text-sm font-bold text-slate-900">Expedientes del paquete</h4>
-              <span id="modal-paquete-ubicacion-counter" class="text-xs font-semibold text-slate-500">Selecciona un paquete</span>
+                <div class="rounded-xl border border-slate-200 bg-white p-4">
+                    <div class="flex items-center justify-between gap-3 mb-3">
+                        <h4 class="text-sm font-bold text-slate-900">Expedientes del paquete</h4>
+                        <span id="modal-paquete-ubicacion-counter" class="text-xs font-semibold text-slate-500">Selecciona un paquete</span>
+                    </div>
+                    <div id="modal-paquete-ubicacion-detalle" class="max-h-[40vh] overflow-auto rounded-lg border border-slate-200 bg-slate-50 px-4 py-6 text-sm text-slate-500 text-center">
+                        Selecciona un paquete para visualizar sus expedientes.
+                    </div>
+                </div>
             </div>
-            <div id="modal-paquete-ubicacion-detalle" class="max-h-[40vh] overflow-auto rounded-lg border border-slate-200 bg-slate-50 px-4 py-6 text-sm text-slate-500 text-center">
-              Selecciona un paquete para visualizar sus expedientes.
-            </div>
-          </div>
-        </div>
-      `,
-      confirmText: "Asignar ubicación",
-      cancelText: "Cancelar",
-      onConfirm: (close) => {
-        const paqueteId = String(document.getElementById("modal-paquete-ubicacion")?.value || "").trim();
-        const ubicacion = String(document.getElementById("modal-ubicacion-paquete")?.value || "").trim();
+        `,
+        confirmText: "Asignar ubicación",
+        cancelText: "Cancelar",
+        onConfirm: (close) => {
+            const paqueteId = String(document.getElementById("modal-paquete-ubicacion")?.value || "").trim();
+            const ubicacion = String(document.getElementById("modal-ubicacion-paquete")?.value || "").trim();
 
-        if (!paqueteId) {
-          showToast("Selecciona un paquete", "warning");
-          return;
+            if (!paqueteId) {
+                showToast("Selecciona un paquete", "warning");
+                return;
+            }
+
+            if (!ubicacion) {
+                showToast("Selecciona una ubicación", "warning");
+                return;
+            }
+
+            showToast(`Ubicación seleccionada: ${ubicacion}. Falta conectar guardado en backend.`, "info");
+            close();
         }
-
-        if (!ubicacion) {
-          showToast("Selecciona una ubicación", "warning");
-          return;
-        }
-
-        showToast(`Ubicación seleccionada: ${ubicacion}. Falta conectar guardado en backend.`, "info");
-        close();
-      }
     });
 
     setTimeout(() => {
-      const selectPaquete = document.getElementById("modal-paquete-ubicacion");
-      const detalle = document.getElementById("modal-paquete-ubicacion-detalle");
-      const counter = document.getElementById("modal-paquete-ubicacion-counter");
+        const selectPaquete = document.getElementById("modal-paquete-ubicacion");
+        const detalle = document.getElementById("modal-paquete-ubicacion-detalle");
+        const counter = document.getElementById("modal-paquete-ubicacion-counter");
 
-      const renderExpedientesPaquete = async () => {
-        const paqueteId = String(selectPaquete?.value || "").trim();
-        if (!detalle || !counter) return;
+        const renderExpedientesPaquete = async () => {
+            const paqueteId = String(selectPaquete?.value || "").trim();
+            if (!detalle || !counter) return;
 
-        if (!paqueteId) {
-          counter.textContent = "Selecciona un paquete";
-          detalle.className = "max-h-[40vh] overflow-auto rounded-lg border border-slate-200 bg-slate-50 px-4 py-6 text-sm text-slate-500 text-center";
-          detalle.innerHTML = "Selecciona un paquete para visualizar sus expedientes.";
-          return;
-        }
+            if (!paqueteId) {
+                counter.textContent = "Selecciona un paquete";
+                detalle.className = "max-h-[40vh] overflow-auto rounded-lg border border-slate-200 bg-slate-50 px-4 py-6 text-sm text-slate-500 text-center";
+                detalle.innerHTML = "Selecciona un paquete para visualizar sus expedientes.";
+                return;
+            }
 
-        detalle.className = "max-h-[40vh] overflow-auto rounded-lg border border-slate-200 bg-slate-50 px-4 py-6 text-sm text-slate-500 text-center";
-        detalle.innerHTML = "Cargando expedientes del paquete...";
+            detalle.className = "max-h-[40vh] overflow-auto rounded-lg border border-slate-200 bg-slate-50 px-4 py-6 text-sm text-slate-500 text-center";
+            detalle.innerHTML = "Cargando expedientes del paquete...";
 
-        try {
-          const resultado = await listarExpedientesPorPaquete(paqueteId);
-          if (!resultado?.success) {
-            throw new Error(resultado?.error || "No se pudieron cargar los expedientes del paquete");
-          }
+            try {
+                const resultado = await listarExpedientesPorPaquete(paqueteId);
+                if (!resultado?.success) {
+                    throw new Error(resultado?.error || "No se pudieron cargar los expedientes del paquete");
+                }
 
-          const filas = Array.isArray(resultado.data) ? resultado.data : [];
-          counter.textContent = `${filas.length} expediente(s)`;
+                const filas = Array.isArray(resultado.data) ? resultado.data : [];
+                counter.textContent = `${filas.length} expediente(s)`;
 
-          if (!filas.length) {
-            detalle.innerHTML = "Este paquete no tiene expedientes asignados.";
-            return;
-          }
+                if (!filas.length) {
+                    detalle.innerHTML = "Este paquete no tiene expedientes asignados.";
+                    return;
+                }
 
-          detalle.className = "max-h-[40vh] overflow-auto rounded-lg border border-slate-200 bg-white";
-          detalle.innerHTML = `
-            <table class="w-full text-sm">
-              <thead class="bg-slate-50 border-b border-slate-200 sticky top-0">
-                <tr>
-                  <th class="px-3 py-2 text-left text-xs font-bold uppercase text-slate-600">Código</th>
-                  <th class="px-3 py-2 text-left text-xs font-bold uppercase text-slate-600">Número</th>
-                  <th class="px-3 py-2 text-left text-xs font-bold uppercase text-slate-600">Estado</th>
-                  <th class="px-3 py-2 text-left text-xs font-bold uppercase text-slate-600">Ubicación actual</th>
-                </tr>
-              </thead>
-              <tbody class="divide-y divide-slate-100">
-                ${filas.map((item) => {
-                  const expediente = item.expediente || {};
-                  return `
-                    <tr>
-                      <td class="px-3 py-2 font-mono text-xs text-slate-700">${_escapeHtml(expediente.codigo_expediente_completo || "-")}</td>
-                      <td class="px-3 py-2 text-slate-700">${_escapeHtml(expediente.numero_expediente || "-")}</td>
-                      <td class="px-3 py-2 text-slate-500">${_escapeHtml(obtenerEstadoTexto(expediente))}</td>
-                      <td class="px-3 py-2 text-slate-500">${_escapeHtml(expediente.nombre_ubicacion || expediente.ubicacion_texto || expediente.id_ubicacion_actual || "-")}</td>
-                    </tr>
-                  `;
-                }).join("")}
-              </tbody>
-            </table>
-          `;
-        } catch (error) {
-          counter.textContent = "Error";
-          detalle.className = "max-h-[40vh] overflow-auto rounded-lg border border-red-200 bg-red-50 px-4 py-5 text-sm text-red-700";
-          detalle.innerHTML = _escapeHtml(error.message || "No se pudieron cargar los expedientes del paquete");
-        }
-      };
+                detalle.className = "max-h-[40vh] overflow-auto rounded-lg border border-slate-200 bg-white";
+                detalle.innerHTML = `
+                    <table class="w-full text-sm">
+                        <thead class="bg-slate-50 border-b border-slate-200 sticky top-0">
+                            <tr>
+                                <th class="px-3 py-2 text-left text-xs font-bold uppercase text-slate-600">Código</th>
+                                <th class="px-3 py-2 text-left text-xs font-bold uppercase text-slate-600">Número</th>
+                                <th class="px-3 py-2 text-left text-xs font-bold uppercase text-slate-600">Estado</th>
+                                <th class="px-3 py-2 text-left text-xs font-bold uppercase text-slate-600">Ubicación actual</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100">
+                            ${filas.map((item) => {
+                                const expediente = item.expediente || {};
+                                return `
+                                    <tr>
+                                        <td class="px-3 py-2 font-mono text-xs text-slate-700">${_escapeHtml(expediente.codigo_expediente_completo || "-")}</td>
+                                        <td class="px-3 py-2 text-slate-700">${_escapeHtml(expediente.numero_expediente || "-")}</td>
+                                        <td class="px-3 py-2 text-slate-500">${_escapeHtml(obtenerEstadoTexto(expediente))}</td>
+                                        <td class="px-3 py-2 text-slate-500">${_escapeHtml(expediente.nombre_ubicacion || expediente.ubicacion_texto || expediente.id_ubicacion_actual || "-")}</td>
+                                    </tr>
+                                `;
+                            }).join("")}
+                        </tbody>
+                    </table>
+                `;
+            } catch (error) {
+                counter.textContent = "Error";
+                detalle.className = "max-h-[40vh] overflow-auto rounded-lg border border-red-200 bg-red-50 px-4 py-5 text-sm text-red-700";
+                detalle.innerHTML = _escapeHtml(error.message || "No se pudieron cargar los expedientes del paquete");
+            }
+        };
 
-      selectPaquete?.addEventListener("change", renderExpedientesPaquete);
-      renderExpedientesPaquete();
+        selectPaquete?.addEventListener("change", renderExpedientesPaquete);
+        renderExpedientesPaquete();
     }, 0);
-  };
+};
 
   const renderTablaPaquetesArchivo = (lista, targetId = "tabla-paquetes-archivo") => {
     const contenedor = document.getElementById(targetId);
