@@ -7,7 +7,7 @@ import { ubicacionService } from "../../services/ubicacionService.js";
 import { estadoService } from "../../services/estadoService.js";
 import {
   paqueteService,
-  sugerirPaqueteParaExpediente,
+
   crearPaqueteArchivo,
   asignarExpedienteAPaquete,
   asignarExpedientesAPaqueteLote,
@@ -2122,6 +2122,116 @@ function abrirModalAsignacion({ paquetes, expedientes, onAssigned }) {
   }, 0);
 }
 
+
+// Función auxiliar para generar el HTML de los rótulos
+function generarRotulosHTML(paquetes, config) {
+  const { rotulosPorPagina, pageSize, orientation, margin, gap } = config;
+  
+  // Calcular dimensiones
+  const pageDimensions = {
+    A4: { width: 210, height: 297 },
+    LETTER: { width: 216, height: 279 },
+    LEGAL: { width: 216, height: 356 }
+  };
+  
+  const dims = pageDimensions[pageSize] || pageDimensions.A4;
+  const pageWidth = orientation === "landscape" ? dims.height : dims.width;
+  const pageHeight = orientation === "landscape" ? dims.width : dims.height;
+  
+  // Calcular grid
+  let cols, rows;
+  if (rotulosPorPagina <= 2) { cols = 1; rows = 2; }
+  else if (rotulosPorPagina <= 4) { cols = 2; rows = 2; }
+  else if (rotulosPorPagina <= 6) { cols = 2; rows = 3; }
+  else if (rotulosPorPagina <= 8) { cols = 2; rows = 4; }
+  else if (rotulosPorPagina <= 10) { cols = 2; rows = 5; }
+  else { cols = 3; rows = 4; }
+  
+  const availableWidth = pageWidth - (margin * 2) - (gap * (cols - 1));
+  const availableHeight = pageHeight - (margin * 2) - (gap * (rows - 1));
+  const cellWidth = Math.floor(availableWidth / cols);
+  const cellHeight = Math.floor(availableHeight / rows);
+  
+  const paginas = [];
+  for (let i = 0; i < paquetes.length; i += rotulosPorPagina) {
+    const paquetesPagina = paquetes.slice(i, i + rotulosPorPagina);
+    
+    const celdasHTML = [];
+    paquetesPagina.forEach(p => {
+      celdasHTML.push(`
+        <div style="
+          width: ${cellWidth}mm;
+          height: ${cellHeight}mm;
+          border: 2px solid #334155;
+          border-radius: 8px;
+          padding: 8px;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          text-align: center;
+          overflow: hidden;
+        ">
+          <p style="
+            font-size: ${Math.min(cellWidth, cellHeight) * 0.08}mm;
+            font-weight: 800;
+            color: #0f172a;
+            margin: 0;
+            line-height: 1.2;
+            word-break: break-word;
+          ">${p.rotulo_paquete || 'SIN RÓTULO'}</p>
+          <p style="
+            font-size: ${Math.min(cellWidth, cellHeight) * 0.05}mm;
+            color: #64748b;
+            margin: 4px 0 0;
+          ">${p.id_paquete_archivo || ''}</p>
+          ${p.color_especialista ? `
+            <p style="
+              font-size: ${Math.min(cellWidth, cellHeight) * 0.04}mm;
+              color: #94a3b8;
+              margin: 2px 0 0;
+            ">${p.anio || ''} · ${p.color_especialista}</p>
+          ` : ''}
+        </div>
+      `);
+    });
+    
+    // Rellenar espacios vacíos
+    const emptySlots = rotulosPorPagina - paquetesPagina.length;
+    for (let j = 0; j < emptySlots; j++) {
+      celdasHTML.push(`
+        <div style="
+          width: ${cellWidth}mm;
+          height: ${cellHeight}mm;
+          border: 2px dashed #e2e8f0;
+          border-radius: 8px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        ">
+          <p style="color: #cbd5e1; font-size: 12px; margin: 0;">Vacío</p>
+        </div>
+      `);
+    }
+    
+    paginas.push(`
+      <div class="rotulo-page" style="
+        width: ${pageWidth}mm;
+        min-height: ${pageHeight}mm;
+        padding: ${margin}mm;
+        display: grid;
+        grid-template-columns: repeat(${cols}, ${cellWidth}mm);
+        grid-template-rows: repeat(${rows}, ${cellHeight}mm);
+        gap: ${gap}mm;
+      ">
+        ${celdasHTML.join('')}
+      </div>
+    `);
+  }
+  
+  return paginas.join('');
+}
+
 export async function initPaquetesPage({ mountNode }) {
   let page = 1;
   let paquetes = paqueteService.listarSync();
@@ -2134,31 +2244,773 @@ export async function initPaquetesPage({ mountNode }) {
   let catalogosPaquetesInFlight = null;
   let catalogosPaquetesLastLoadedAt = 0;
   const PAQUETES_ARCHIVO_CACHE_MS = 90000;
-  const tabs = {
-    listado: "tab-panel-listado",
-    archivo: "tab-panel-archivo",
-    asignar: "tab-panel-asignar",
-    quitar: "tab-panel-quitar",
-    colores: "tab-panel-colores"
+const tabs = {
+  listado: "tab-panel-listado",
+  archivo: "tab-panel-archivo",
+  asignar: "tab-panel-asignar",
+  quitar: "tab-panel-quitar",
+  colores: "tab-panel-colores",
+  rotulos: "tab-panel-rotulos"  // ← NUEVO
+};
+
+const tabState = {
+  active: "listado",
+  initialized: {
+    listado: false,
+    archivo: false,
+    asignar: false,
+    quitar: false,
+    colores: false,
+    rotulos: false  // ← NUEVO
+  }
+
   };
-  const tabState = {
-    active: "listado",
-    initialized: {
-      listado: false,
-      archivo: false,
-      asignar: false,
-      quitar: false,
-      colores: false
+  const inicializarTabRotulos = (targetId) => {
+  const panel = document.getElementById(targetId);
+  if (!panel) return;
+  
+  if (panel.dataset.rendered === "1") return;
+  
+  panel.innerHTML = `
+    <div class="grid grid-cols-1 lg:grid-cols-[340px_1fr] gap-0 h-full">
+      
+      <!-- PANEL IZQUIERDO: Configuración -->
+      <div class="border-r border-slate-200 bg-white p-4 flex flex-col gap-3 overflow-y-auto">
+        
+        <!-- Búsqueda -->
+        <div>
+          <label class="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1.5">Buscar paquete</label>
+          <div class="relative">
+            <span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">🔍</span>
+            <input 
+              id="rotulo-search" 
+              type="text"
+              class="w-full pl-9 pr-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" 
+              placeholder="Código, materia, año..." 
+            />
+          </div>
+        </div>
+        
+        <!-- Lista de paquetes -->
+        <div class="border border-slate-200 rounded-xl overflow-hidden flex flex-col min-h-0 flex-1">
+          <div class="flex items-center justify-between px-3 py-2 bg-slate-50 border-b border-slate-200">
+            <span id="rotulo-count" class="text-xs font-semibold text-slate-600">0 seleccionados</span>
+            <div class="flex gap-2 text-xs">
+              <button id="rotulo-select-all" class="text-blue-600 hover:text-blue-800 font-medium">Todos</button>
+              <button id="rotulo-deselect-all" class="text-blue-600 hover:text-blue-800 font-medium">Ninguno</button>
+            </div>
+          </div>
+          
+          <div id="rotulo-list" class="flex-1 overflow-y-auto divide-y divide-slate-100">
+            ${paquetesArchivo.map(item => `
+              <label class="flex items-center gap-3 px-3 py-2.5 hover:bg-blue-50/50 cursor-pointer transition-colors">
+                <input type="checkbox" class="rotulo-checkbox h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" value="${_escapeHtml(item.id_paquete_archivo)}" data-rotulo="${_escapeHtml(item.rotulo_paquete || '')}" data-id="${_escapeHtml(item.id_paquete_archivo)}" data-anio="${_escapeHtml(item.anio || '')}" data-color="${_escapeHtml(item.color_especialista || '')}" />
+                <div class="flex-1 min-w-0">
+                  <p class="text-sm font-semibold text-slate-800 truncate">${_escapeHtml(item.rotulo_paquete || 'Sin rótulo')}</p>
+                  <p class="text-xs text-slate-400 truncate">${_escapeHtml(item.id_paquete_archivo)} · ${_escapeHtml(item.anio || 'S/F')}</p>
+                </div>
+                ${item.color_especialista ? `<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${_getColorClass(item.color_especialista)}">${_escapeHtml(item.color_especialista)}</span>` : '<span class="text-xs text-slate-300">Sin color</span>'}
+              </label>
+            `).join("")}
+          </div>
+        </div>
+        
+        <!-- Configuración -->
+        <div class="border border-slate-200 rounded-xl p-4 space-y-3 bg-slate-50/50">
+          <h4 class="text-sm font-bold text-slate-800 flex items-center gap-2">
+            <span>⚙️</span> Configuración
+          </h4>
+          
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-bold text-slate-600 mb-1">Rótulos por hoja</label>
+              <select id="rotulos-per-page" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none bg-white">
+                <option value="2">2 rótulos</option>
+                <option value="4">4 rótulos</option>
+                <option value="6">6 rótulos</option>
+                <option value="8" selected>8 rótulos</option>
+                <option value="10">10 rótulos</option>
+                <option value="12">12 rótulos</option>
+              </select>
+            </div>
+            
+            <div>
+              <label class="block text-xs font-bold text-slate-600 mb-1">Tamaño</label>
+              <select id="page-size" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none bg-white">
+                <option value="A4" selected>A4</option>
+                <option value="LETTER">Carta</option>
+                <option value="LEGAL">Oficio</option>
+              </select>
+            </div>
+          </div>
+          
+          <div>
+            <label class="block text-xs font-bold text-slate-600 mb-1">Orientación</label>
+            <div class="flex gap-2">
+              <button class="orientation-btn flex-1 px-3 py-2 text-xs font-semibold rounded-lg border border-slate-300 hover:bg-slate-100 transition-colors" data-orientation="portrait">
+                📱 Vertical
+              </button>
+              <button class="orientation-btn flex-1 px-3 py-2 text-xs font-semibold rounded-lg border border-blue-300 bg-blue-50 text-blue-700 transition-colors" data-orientation="landscape">
+                🖥️ Horizontal
+              </button>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Acciones -->
+        <div class="flex flex-col gap-2 mt-auto">
+          <button id="btn-preview-rotulos" class="w-full px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg transition-colors">
+            👁️ Generar vista previa
+          </button>
+          <button id="btn-print-rotulos" class="w-full px-4 py-2.5 bg-slate-700 hover:bg-slate-800 text-white text-sm font-semibold rounded-lg transition-colors">
+            🖨️ Imprimir hojas
+          </button>
+        </div>
+      </div>
+      
+      <!-- PANEL DERECHO: Vista previa -->
+      <div class="bg-slate-100 p-4 overflow-auto flex items-start justify-center">
+        <div id="rotulo-preview" class="w-full h-full flex items-center justify-center">
+          <div class="text-center text-slate-400">
+            <p class="text-4xl mb-3">📋</p>
+            <p class="text-sm font-medium">Selecciona paquetes y haz clic en</p>
+            <p class="text-sm font-bold text-slate-500">"Generar vista previa"</p>
+          </div>
+        </div>
+      </div>
+      
+    </div>
+  `;
+  
+  panel.dataset.rendered = "1";
+  
+  // Inicializar lógica del tab
+  setTimeout(() => {
+    inicializarLogicaRotulos();
+  }, 100);
+};
+
+const inicializarLogicaRotulos = () => {
+  const searchInput = document.getElementById("rotulo-search");
+  const rotuloList = document.getElementById("rotulo-list");
+  const rotuloCount = document.getElementById("rotulo-count");
+  const selectAllBtn = document.getElementById("rotulo-select-all");
+  const deselectAllBtn = document.getElementById("rotulo-deselect-all");
+  const rotulosPerPage = document.getElementById("rotulos-per-page");
+  const pageSize = document.getElementById("page-size");
+  const previewBtn = document.getElementById("btn-preview-rotulos");
+  const printBtn = document.getElementById("btn-print-rotulos");
+  const previewContainer = document.getElementById("rotulo-preview");
+  const orientationBtns = document.querySelectorAll(".orientation-btn");
+  
+  let selectedOrientation = "landscape";
+  
+  // Manejar orientación
+  orientationBtns.forEach(btn => {
+    btn.addEventListener("click", () => {
+      selectedOrientation = btn.dataset.orientation;
+      orientationBtns.forEach(b => {
+        b.classList.remove("border-blue-300", "bg-blue-50", "text-blue-700");
+        b.classList.add("border-slate-300", "hover:bg-slate-100");
+      });
+      btn.classList.add("border-blue-300", "bg-blue-50", "text-blue-700");
+      btn.classList.remove("border-slate-300", "hover:bg-slate-100");
+    });
+  });
+  
+  // Actualizar contador
+  const updateCount = () => {
+    const checkboxes = rotuloList?.querySelectorAll(".rotulo-checkbox");
+    const checked = rotuloList?.querySelectorAll(".rotulo-checkbox:checked");
+    if (rotuloCount) {
+      rotuloCount.textContent = `${checked?.length || 0} de ${checkboxes?.length || 0} seleccionados`;
     }
   };
+  
+  // Seleccionar/Deseleccionar todos
+  selectAllBtn?.addEventListener("click", () => {
+    rotuloList?.querySelectorAll(".rotulo-checkbox").forEach(cb => cb.checked = true);
+    updateCount();
+  });
+  
+  deselectAllBtn?.addEventListener("click", () => {
+    rotuloList?.querySelectorAll(".rotulo-checkbox").forEach(cb => cb.checked = false);
+    updateCount();
+  });
+  
+  // Contar cambios
+  rotuloList?.addEventListener("change", (e) => {
+    if (e.target.classList.contains("rotulo-checkbox")) {
+      updateCount();
+    }
+  });
+  
+  // Búsqueda
+  searchInput?.addEventListener("input", (e) => {
+    const query = e.target.value.toLowerCase().trim();
+    rotuloList?.querySelectorAll("label").forEach(label => {
+      const text = label.textContent.toLowerCase();
+      label.style.display = text.includes(query) ? "" : "none";
+    });
+  });
+  
+  // Obtener paquetes seleccionados
+  const getSelectedPaquetes = () => {
+    const checkboxes = rotuloList?.querySelectorAll(".rotulo-checkbox:checked");
+    if (!checkboxes) return [];
+    return Array.from(checkboxes).map(cb => ({
+      id_paquete_archivo: cb.value,
+      rotulo_paquete: cb.dataset.rotulo,
+      anio: cb.dataset.anio,
+      color_especialista: cb.dataset.color
+    }));
+  };
+  
+  // Generar vista previa
+  const generatePreview = () => {
+    const selected = getSelectedPaquetes();
+    if (selected.length === 0) {
+      showToast("Selecciona al menos un paquete", "warning");
+      return;
+    }
+    
+    const config = {
+      rotulosPorPagina: parseInt(rotulosPerPage?.value || 8),
+      pageSize: pageSize?.value || "A4",
+      orientation: selectedOrientation,
+      margin: 10,
+      gap: 5
+    };
+    
+    if (previewContainer) {
+      previewContainer.innerHTML = generarRotulosHTML(selected, config);
+    }
+  };
+  
+  previewBtn?.addEventListener("click", generatePreview);
+  
+  // Imprimir
+  printBtn?.addEventListener("click", () => {
+    const selected = getSelectedPaquetes();
+    if (selected.length === 0) {
+      showToast("Selecciona al menos un paquete", "warning");
+      return;
+    }
+    
+    const config = {
+      rotulosPorPagina: parseInt(rotulosPerPage?.value || 8),
+      pageSize: pageSize?.value || "A4",
+      orientation: selectedOrientation,
+      margin: 10,
+      gap: 5
+    };
+    
+    const printWindow = window.open("", "_blank", "width=1000,height=800");
+    if (!printWindow) {
+      showToast("Permite las ventanas emergentes para imprimir", "warning");
+      return;
+    }
+    
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8" />
+        <title>Rótulos - ${new Date().toLocaleDateString()}</title>
+        <style>
+          * { margin: 0; padding: 0; box-sizing: border-box; }
+          body { 
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: #f1f5f9;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+          }
+          @media print {
+            body { 
+              background: white; 
+              padding: 0;
+              margin: 0;
+            }
+            .no-print { display: none; }
+          }
+          .rotulo-page {
+            background: white;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+          }
+          @media print {
+            .rotulo-page {
+              box-shadow: none;
+              margin: 0;
+              page-break-after: always;
+            }
+          }
+          .no-print {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+          }
+          .btn-print {
+            background: #2563eb;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(37,99,235,0.3);
+          }
+          .btn-print:hover {
+            background: #1d4ed8;
+          }
+        </style>
+      </head>
+      <body>
+        <button class="no-print btn-print" onclick="window.print()">🖨️ Imprimir</button>
+        ${generarRotulosHTML(selected, config)}
+      </body>
+      </html>
+    `);
+    printWindow.document.close();
+  });
+  
+  updateCount();
+};
+function abrirModalGenerarRotulos() {
+  if (!paquetesArchivo || paquetesArchivo.length === 0) {
+    showToast("No hay paquetes archivo disponibles", "warning");
+    return;
+  }
 
+  openModal({
+    title: "📄 Generar Hoja de Rótulos",
+    panelWidthClass: "max-w-7xl",
+    bodyClass: "p-0",
+    bodyScrollable: false,
+    confirmText: "Cerrar",
+    cancelText: "",
+    onConfirm: (close) => close(),
+    onCancel: (close) => close(),
+    content: `
+      <div class="grid grid-cols-1 lg:grid-cols-[340px_1fr] gap-0 h-[80vh]">
+        
+        <!-- PANEL IZQUIERDO: Configuración -->
+        <div class="border-r border-slate-200 bg-white p-4 flex flex-col gap-3 overflow-y-auto">
+          
+          <!-- Búsqueda -->
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1.5">Buscar paquete</label>
+            <div class="relative">
+              <span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">🔍</span>
+              <input 
+                id="rotulo-search" 
+                type="text"
+                class="w-full pl-9 pr-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" 
+                placeholder="Código, materia, año..." 
+              />
+            </div>
+          </div>
+          
+          <!-- Lista de paquetes -->
+          <div class="border border-slate-200 rounded-xl overflow-hidden flex flex-col min-h-0 flex-1">
+            <div class="flex items-center justify-between px-3 py-2 bg-slate-50 border-b border-slate-200">
+              <span id="rotulo-count" class="text-xs font-semibold text-slate-600">0 seleccionados</span>
+              <div class="flex gap-2 text-xs">
+                <button id="rotulo-select-all" class="text-blue-600 hover:text-blue-800 font-medium">Todos</button>
+                <button id="rotulo-deselect-all" class="text-blue-600 hover:text-blue-800 font-medium">Ninguno</button>
+              </div>
+            </div>
+            
+            <div id="rotulo-list" class="flex-1 overflow-y-auto divide-y divide-slate-100">
+              ${paquetesArchivo.map(item => `
+                <label class="flex items-center gap-3 px-3 py-2.5 hover:bg-blue-50/50 cursor-pointer transition-colors">
+                  <input type="checkbox" class="rotulo-checkbox h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" value="${_escapeHtml(item.id_paquete_archivo)}" data-rotulo="${_escapeHtml(item.rotulo_paquete || '')}" data-id="${_escapeHtml(item.id_paquete_archivo)}" data-anio="${_escapeHtml(item.anio || '')}" data-color="${_escapeHtml(item.color_especialista || '')}" />
+                  <div class="flex-1 min-w-0">
+                    <p class="text-sm font-semibold text-slate-800 truncate">${_escapeHtml(item.rotulo_paquete || 'Sin rótulo')}</p>
+                    <p class="text-xs text-slate-400 truncate">${_escapeHtml(item.id_paquete_archivo)} · ${_escapeHtml(item.anio || 'S/F')}</p>
+                  </div>
+                  ${item.color_especialista ? `<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${_getColorClass(item.color_especialista)}">${_escapeHtml(item.color_especialista)}</span>` : '<span class="text-xs text-slate-300">Sin color</span>'}
+                </label>
+              `).join("")}
+            </div>
+          </div>
+          
+          <!-- Configuración -->
+          <div class="border border-slate-200 rounded-xl p-4 space-y-3 bg-slate-50/50">
+            <h4 class="text-sm font-bold text-slate-800 flex items-center gap-2">
+              <span>⚙️</span> Configuración
+            </h4>
+            
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs font-bold text-slate-600 mb-1">Rótulos por hoja</label>
+                <select id="rotulos-per-page" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none bg-white">
+                  <option value="2">2 rótulos</option>
+                  <option value="4">4 rótulos</option>
+                  <option value="6">6 rótulos</option>
+                  <option value="8" selected>8 rótulos</option>
+                  <option value="10">10 rótulos</option>
+                  <option value="12">12 rótulos</option>
+                </select>
+              </div>
+              
+              <div>
+                <label class="block text-xs font-bold text-slate-600 mb-1">Tamaño</label>
+                <select id="page-size" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none bg-white">
+                  <option value="A4" selected>A4</option>
+                  <option value="LETTER">Carta</option>
+                  <option value="LEGAL">Oficio</option>
+                </select>
+              </div>
+            </div>
+            
+            <div>
+              <label class="block text-xs font-bold text-slate-600 mb-1">Orientación</label>
+              <div class="flex gap-2">
+                <button class="orientation-btn flex-1 px-3 py-2 text-xs font-semibold rounded-lg border border-slate-300 hover:bg-slate-100 transition-colors" data-orientation="portrait">
+                  📱 Vertical
+                </button>
+                <button class="orientation-btn flex-1 px-3 py-2 text-xs font-semibold rounded-lg border border-blue-300 bg-blue-50 text-blue-700 transition-colors" data-orientation="landscape">
+                  🖥️ Horizontal
+                </button>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Acciones -->
+          <div class="flex flex-col gap-2 mt-auto">
+            <button id="btn-preview-rotulos" class="w-full px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg transition-colors">
+              👁️ Generar vista previa
+            </button>
+            <button id="btn-print-rotulos" class="w-full px-4 py-2.5 bg-slate-700 hover:bg-slate-800 text-white text-sm font-semibold rounded-lg transition-colors">
+              🖨️ Imprimir hojas
+            </button>
+          </div>
+        </div>
+        
+        <!-- PANEL DERECHO: Vista previa -->
+        <div class="bg-slate-100 p-4 overflow-auto flex items-start justify-center">
+          <div id="rotulo-preview" class="w-full h-full flex items-center justify-center">
+            <div class="text-center text-slate-400">
+              <p class="text-4xl mb-3">📋</p>
+              <p class="text-sm font-medium">Selecciona paquetes y haz clic en</p>
+              <p class="text-sm font-bold text-slate-500">"Generar vista previa"</p>
+            </div>
+          </div>
+        </div>
+        
+      </div>
+    `
+  });
+
+  // Lógica del modal
+  setTimeout(() => {
+    const searchInput = document.getElementById("rotulo-search");
+    const rotuloList = document.getElementById("rotulo-list");
+    const rotuloCount = document.getElementById("rotulo-count");
+    const selectAllBtn = document.getElementById("rotulo-select-all");
+    const deselectAllBtn = document.getElementById("rotulo-deselect-all");
+    const rotulosPerPage = document.getElementById("rotulos-per-page");
+    const pageSize = document.getElementById("page-size");
+    const previewBtn = document.getElementById("btn-preview-rotulos");
+    const printBtn = document.getElementById("btn-print-rotulos");
+    const previewContainer = document.getElementById("rotulo-preview");
+    const orientationBtns = document.querySelectorAll(".orientation-btn");
+    
+    let selectedOrientation = "landscape";
+    
+    // Manejar orientación
+    orientationBtns.forEach(btn => {
+      btn.addEventListener("click", () => {
+        selectedOrientation = btn.dataset.orientation;
+        orientationBtns.forEach(b => {
+          b.classList.remove("border-blue-300", "bg-blue-50", "text-blue-700");
+          b.classList.add("border-slate-300", "hover:bg-slate-100");
+        });
+        btn.classList.add("border-blue-300", "bg-blue-50", "text-blue-700");
+        btn.classList.remove("border-slate-300", "hover:bg-slate-100");
+      });
+    });
+    
+    // Actualizar contador
+    const updateCount = () => {
+      const checkboxes = rotuloList.querySelectorAll(".rotulo-checkbox");
+      const checked = rotuloList.querySelectorAll(".rotulo-checkbox:checked");
+      rotuloCount.textContent = `${checked.length} de ${checkboxes.length} seleccionados`;
+    };
+    
+    // Seleccionar/Deseleccionar todos
+    selectAllBtn.addEventListener("click", () => {
+      rotuloList.querySelectorAll(".rotulo-checkbox").forEach(cb => cb.checked = true);
+      updateCount();
+    });
+    
+    deselectAllBtn.addEventListener("click", () => {
+      rotuloList.querySelectorAll(".rotulo-checkbox").forEach(cb => cb.checked = false);
+      updateCount();
+    });
+    
+    // Contar cambios
+    rotuloList.addEventListener("change", (e) => {
+      if (e.target.classList.contains("rotulo-checkbox")) {
+        updateCount();
+      }
+    });
+    
+    // Búsqueda
+    searchInput.addEventListener("input", (e) => {
+      const query = e.target.value.toLowerCase().trim();
+      rotuloList.querySelectorAll("label").forEach(label => {
+        const text = label.textContent.toLowerCase();
+        label.style.display = text.includes(query) ? "" : "none";
+      });
+    });
+    
+    // Obtener paquetes seleccionados
+    const getSelectedPaquetes = () => {
+      const checkboxes = rotuloList.querySelectorAll(".rotulo-checkbox:checked");
+      return Array.from(checkboxes).map(cb => ({
+        id_paquete_archivo: cb.value,
+        rotulo_paquete: cb.dataset.rotulo,
+        anio: cb.dataset.anio,
+        color_especialista: cb.dataset.color
+      }));
+    };
+    
+    // Generar vista previa
+    const generatePreview = () => {
+      const selected = getSelectedPaquetes();
+      if (selected.length === 0) {
+        showToast("Selecciona al menos un paquete", "warning");
+        return;
+      }
+      
+      const config = {
+        rotulosPorPagina: parseInt(rotulosPerPage.value),
+        pageSize: pageSize.value,
+        orientation: selectedOrientation,
+        margin: 10,
+        gap: 5
+      };
+      
+      previewContainer.innerHTML = generarRotulosHTML(selected, config);
+    };
+    
+    previewBtn.addEventListener("click", generatePreview);
+    
+    // Imprimir
+    printBtn.addEventListener("click", () => {
+      const selected = getSelectedPaquetes();
+      if (selected.length === 0) {
+        showToast("Selecciona al menos un paquete", "warning");
+        return;
+      }
+      
+      const config = {
+        rotulosPorPagina: parseInt(rotulosPerPage.value),
+        pageSize: pageSize.value,
+        orientation: selectedOrientation,
+        margin: 10,
+        gap: 5
+      };
+      
+      const printWindow = window.open("", "_blank", "width=1000,height=800");
+      if (!printWindow) {
+        showToast("Permite las ventanas emergentes para imprimir", "warning");
+        return;
+      }
+      
+      printWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8" />
+          <title>Rótulos - ${new Date().toLocaleDateString()}</title>
+          <style>
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body { 
+              font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+              background: #f1f5f9;
+              display: flex;
+              flex-direction: column;
+              align-items: center;
+              padding: 20px;
+            }
+            @media print {
+              body { 
+                background: white; 
+                padding: 0;
+                margin: 0;
+              }
+              .no-print { display: none; }
+            }
+            .rotulo-page {
+              background: white;
+              margin-bottom: 20px;
+              box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            }
+            @media print {
+              .rotulo-page {
+                box-shadow: none;
+                margin: 0;
+                page-break-after: always;
+              }
+            }
+            .no-print {
+              position: fixed;
+              top: 20px;
+              right: 20px;
+              z-index: 1000;
+            }
+            .btn-print {
+              background: #2563eb;
+              color: white;
+              border: none;
+              padding: 10px 20px;
+              border-radius: 8px;
+              font-size: 14px;
+              font-weight: 600;
+              cursor: pointer;
+              box-shadow: 0 4px 12px rgba(37,99,235,0.3);
+            }
+            .btn-print:hover {
+              background: #1d4ed8;
+            }
+          </style>
+        </head>
+        <body>
+          <button class="no-print btn-print" onclick="window.print()">🖨️ Imprimir</button>
+          ${generarRotulosHTML(selected, config)}
+        </body>
+        </html>
+      `);
+      printWindow.document.close();
+    });
+    
+    updateCount();
+  }, 100);
+}
+
+// Función auxiliar para generar el HTML de los rótulos
+function generarRotulosHTML(paquetes, config) {
+  const { rotulosPorPagina, pageSize, orientation, margin, gap } = config;
+  
+  // Calcular dimensiones
+  const pageDimensions = {
+    A4: { width: 210, height: 297 },
+    LETTER: { width: 216, height: 279 },
+    LEGAL: { width: 216, height: 356 }
+  };
+  
+  const dims = pageDimensions[pageSize] || pageDimensions.A4;
+  const pageWidth = orientation === "landscape" ? dims.height : dims.width;
+  const pageHeight = orientation === "landscape" ? dims.width : dims.height;
+  
+  // Calcular grid
+  let cols, rows;
+  if (rotulosPorPagina <= 2) { cols = 1; rows = 2; }
+  else if (rotulosPorPagina <= 4) { cols = 2; rows = 2; }
+  else if (rotulosPorPagina <= 6) { cols = 2; rows = 3; }
+  else if (rotulosPorPagina <= 8) { cols = 2; rows = 4; }
+  else if (rotulosPorPagina <= 10) { cols = 2; rows = 5; }
+  else { cols = 3; rows = 4; }
+  
+  const availableWidth = pageWidth - (margin * 2) - (gap * (cols - 1));
+  const availableHeight = pageHeight - (margin * 2) - (gap * (rows - 1));
+  const cellWidth = Math.floor(availableWidth / cols);
+  const cellHeight = Math.floor(availableHeight / rows);
+  
+  const paginas = [];
+  for (let i = 0; i < paquetes.length; i += rotulosPorPagina) {
+    const paquetesPagina = paquetes.slice(i, i + rotulosPorPagina);
+    
+    const celdasHTML = [];
+    paquetesPagina.forEach(p => {
+      celdasHTML.push(`
+        <div style="
+          width: ${cellWidth}mm;
+          height: ${cellHeight}mm;
+          border: 2px solid #334155;
+          border-radius: 8px;
+          padding: 8px;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          text-align: center;
+          overflow: hidden;
+        ">
+          <p style="
+            font-size: ${Math.min(cellWidth, cellHeight) * 0.08}mm;
+            font-weight: 800;
+            color: #0f172a;
+            margin: 0;
+            line-height: 1.2;
+            word-break: break-word;
+          ">${p.rotulo_paquete || 'SIN RÓTULO'}</p>
+          <p style="
+            font-size: ${Math.min(cellWidth, cellHeight) * 0.05}mm;
+            color: #64748b;
+            margin: 4px 0 0;
+          ">${p.id_paquete_archivo || ''}</p>
+          ${p.color_especialista ? `
+            <p style="
+              font-size: ${Math.min(cellWidth, cellHeight) * 0.04}mm;
+              color: #94a3b8;
+              margin: 2px 0 0;
+            ">${p.anio || ''} · ${p.color_especialista}</p>
+          ` : ''}
+        </div>
+      `);
+    });
+    
+    // Rellenar espacios vacíos
+    const emptySlots = rotulosPorPagina - paquetesPagina.length;
+    for (let j = 0; j < emptySlots; j++) {
+      celdasHTML.push(`
+        <div style="
+          width: ${cellWidth}mm;
+          height: ${cellHeight}mm;
+          border: 2px dashed #e2e8f0;
+          border-radius: 8px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        ">
+          <p style="color: #cbd5e1; font-size: 12px; margin: 0;">Vacío</p>
+        </div>
+      `);
+    }
+    
+    paginas.push(`
+      <div class="rotulo-page" style="
+        width: ${pageWidth}mm;
+        min-height: ${pageHeight}mm;
+        padding: ${margin}mm;
+        display: grid;
+        grid-template-columns: repeat(${cols}, ${cellWidth}mm);
+        grid-template-rows: repeat(${rows}, ${cellHeight}mm);
+        gap: ${gap}mm;
+      ">
+        ${celdasHTML.join('')}
+      </div>
+    `);
+  }
+  
+  return paginas.join('');
+}
   const pintarBotonTabActivo = (tabKey) => {
     const map = {
       listado: "btn-listado-paquetes",
       archivo: "btn-listado-paquetes-archivo",
       asignar: "btn-asignar-exp-manual",
       quitar: "btn-quitar-exp-manual",
-      colores: "btn-listado-colores-especialistas"
+      colores: "btn-listado-colores-especialistas",
+       rotulos: "btn-generar-rotulos" 
     };
 
     Object.values(map).forEach((value) => {
@@ -2219,6 +3071,10 @@ export async function initPaquetesPage({ mountNode }) {
           await cargarCatalogosPaquetes();
         abrirModalColoresYEspecialistas(tabs.colores);
         break;
+        case "rotulos":
+  await cargarPaquetesArchivo();
+  inicializarTabRotulos(tabs.rotulos);
+  break;
       default:
         break;
     }
@@ -2385,7 +3241,7 @@ export async function initPaquetesPage({ mountNode }) {
       title: "Crear Paquete de Archivo",
       content: `
         <form id="form-crear-paquete-archivo" class="space-y-4">
-          <input type="hidden" name="color_especialista" value="GRIS" />
+          <input type="hidden" name="color_especialista" value="" />
           <div class="grid gap-4 md:grid-cols-2">
             <div>
               <label class="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-2">Año</label>
@@ -2641,11 +3497,13 @@ export async function initPaquetesPage({ mountNode }) {
 
     const rows = (Array.isArray(lista) ? lista : []).map((item) => ({
       codigo: `<div class="font-semibold text-slate-800">${_escapeHtml(item.rotulo_paquete || "-")}</div><div class="text-xs text-slate-500">${_escapeHtml(item.id_paquete_archivo || "-")}</div>`,
-      especialista: _escapeHtml(item.especialista || item.responsable || item.color_especialista || "-"),
+      especialista: item.color_especialista 
+  ? _escapeHtml(item.color_especialista) 
+  : `<span class="text-slate-400">Sin color</span>`,
       totalExpedientes: _escapeHtml(item.total_expedientes || item.cantidad_expedientes || item.expedientes_count || "-"),
-      estado: String(item.id_ubicacion || item.ubicacion_texto || "").trim()
-        ? `<span class="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700">ARCHIVADO</span>`
-        : `<span class="inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-xs font-semibold text-blue-700">ASIGNADO</span>`,
+     estado: String(item.activo || "").trim().toUpperCase() === "NO"
+  ? `<span class="inline-flex items-center rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-xs font-semibold text-red-700">INACTIVO</span>`
+  : `<span class="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700">ACTIVO</span>`,
       fecha: _escapeHtml(_formatearFechaCorta(item.fecha_actualizacion || item.fecha_creacion || "")),
       ubicacion: _escapeHtml(item.ubicacion_texto || "Sin ubicación"),
       acciones: `
@@ -3570,97 +4428,74 @@ function abrirModalColoresYEspecialistas(inlineMountId = "") {
 
   const render = () => {
     mountNode.innerHTML = `
-      <!-- SECCIÓN: PAQUETES ARCHIVO (BACKEND) -->
-      <section class="mb-10">
-        <div class="mb-6">
-          <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-2">
-            <div class="flex items-center gap-3">
-              <span class="inline-flex items-center justify-center h-11 w-11 rounded-2xl bg-gradient-to-br from-sky-100 via-blue-50 to-indigo-100 text-blue-700 shadow-sm ring-1 ring-blue-200/70">${icon("paquetes", "w-6 h-6")}</span>
-              <h2 class="text-xl sm:text-2xl font-bold text-slate-900">Gestión de Paquetes del Archivo</h2>
-            </div>
-            <div class="paquete-toolbar ml-10 sm:ml-0">
-              <button id="btn-crear-paq-archivo" class="paquete-action-btn paquete-action-btn--primary" type="button">
-                <span class="paquete-action-btn__icon">${icon("plus", "w-5 h-5")}</span>
-                <span class="paquete-action-btn__content">
-                  <span class="paquete-action-btn__title">Nuevo Paquete</span>
-                  <span class="paquete-action-btn__hint">Crear registro</span>
-                </span>
-              </button>
-              <button id="btn-asignar-exp-manual" class="paquete-action-btn paquete-action-btn--assign" type="button">
-                <span class="paquete-action-btn__icon">${icon("transfer", "w-5 h-5")}</span>
-                <span class="paquete-action-btn__content">
-                  <span class="paquete-action-btn__title">Asignar Expedientes</span>
-                  <span class="paquete-action-btn__hint">Agregar al paquete</span>
-                </span>
-              </button>
-              <button id="btn-asignar-ubicacion-paquete" class="paquete-action-btn paquete-action-btn--catalog" type="button">
-                <span class="paquete-action-btn__icon">${icon("mapPin", "w-5 h-5")}</span>
-                <span class="paquete-action-btn__content">
-                  <span class="paquete-action-btn__title">Asignar ubicación a un paquete</span>
-                  <span class="paquete-action-btn__hint">Definir resguardo físico</span>
-                </span>
-              </button>
-              <button id="btn-quitar-exp-manual" class="paquete-action-btn paquete-action-btn--remove" type="button">
-                <span class="paquete-action-btn__icon">${icon("cancel", "w-5 h-5")}</span>
-                <span class="paquete-action-btn__content">
-                  <span class="paquete-action-btn__title">Quitar Expediente</span>
-                  <span class="paquete-action-btn__hint">Retirar asignación</span>
-                </span>
-              </button>
-              <button id="btn-listado-colores-especialistas" class="paquete-action-btn paquete-action-btn--catalog" type="button">
-                <span class="paquete-action-btn__icon">${icon("target", "w-5 h-5")}</span>
-                <span class="paquete-action-btn__content">
-                  <span class="paquete-action-btn__title">Colores y Especialistas</span>
-                  <span class="paquete-action-btn__hint">Ver catálogo</span>
-                </span>
-              </button>
-              <button id="btn-listado-paquetes" class="paquete-action-btn paquete-action-btn--list" type="button">
-                <span class="paquete-action-btn__icon">${icon("list", "w-5 h-5")}</span>
-                <span class="paquete-action-btn__content">
-                  <span class="paquete-action-btn__title">Listado de Paquetes</span>
-                  <span class="paquete-action-btn__hint">Ver activos</span>
-                </span>
-              </button>
-              <button id="btn-listado-paquetes-archivo" class="paquete-action-btn paquete-action-btn--list" type="button">
-                <span class="paquete-action-btn__icon">${icon("archiveBox", "w-5 h-5")}</span>
-                <span class="paquete-action-btn__content">
-                  <span class="paquete-action-btn__title">Paquetes para Archivo</span>
-                  <span class="paquete-action-btn__hint">Tabla paquetes_archivo</span>
-                </span>
-              </button>
-            </div>
-          </div>
-          <p class="text-sm text-slate-500 ml-10">Gestión de paquetes archivo: búsqueda automática o creación/asignación manual</p>
-        </div>
-
-        <div class="card-surface p-6 mb-6">
-          <form id="form-buscar-exp-paquete" class="flex flex-col sm:flex-row gap-4 items-end">
-            <div class="flex-1">
-              <label class="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-2">Código del Expediente</label>
-              <input
-                id="input-codigo-exp-paquete"
-                name="codigo_expediente"
-                class="input-base w-full"
-                placeholder="Ej: 00059-2019-0-3101-JR-CI-01"
-                autocomplete="off"
-                required
-              />
-            </div>
-            <button type="submit" class="btn btn-primary px-6 py-2 font-semibold whitespace-nowrap">
-              🔍 Buscar expediente
-            </button>
-          </form>
-          <div id="loading-buscar-exp" class="hidden mt-3 text-sm text-slate-500">⏳ Consultando...</div>
-        </div>
-
-        <div id="sugerencia-paquete" class="hidden mb-6"></div>
+      <div class="paquete-toolbar ml-10 sm:ml-0">
+  <button id="btn-crear-paq-archivo" class="paquete-action-btn paquete-action-btn--primary" type="button">
+    <span class="paquete-action-btn__icon">${icon("plus", "w-5 h-5")}</span>
+    <span class="paquete-action-btn__content">
+      <span class="paquete-action-btn__title">Nuevo Paquete</span>
+      <span class="paquete-action-btn__hint">Crear registro</span>
+    </span>
+  </button>
+  <button id="btn-asignar-exp-manual" class="paquete-action-btn paquete-action-btn--assign" type="button">
+    <span class="paquete-action-btn__icon">${icon("transfer", "w-5 h-5")}</span>
+    <span class="paquete-action-btn__content">
+      <span class="paquete-action-btn__title">Asignar Expedientes</span>
+      <span class="paquete-action-btn__hint">Agregar al paquete</span>
+    </span>
+  </button>
+  <button id="btn-asignar-ubicacion-paquete" class="paquete-action-btn paquete-action-btn--catalog" type="button">
+    <span class="paquete-action-btn__icon">${icon("mapPin", "w-5 h-5")}</span>
+    <span class="paquete-action-btn__content">
+      <span class="paquete-action-btn__title">Asignar ubicación a un paquete</span>
+      <span class="paquete-action-btn__hint">Definir resguardo físico</span>
+    </span>
+  </button>
+  <button id="btn-quitar-exp-manual" class="paquete-action-btn paquete-action-btn--remove" type="button">
+    <span class="paquete-action-btn__icon">${icon("cancel", "w-5 h-5")}</span>
+    <span class="paquete-action-btn__content">
+      <span class="paquete-action-btn__title">Quitar Expediente</span>
+      <span class="paquete-action-btn__hint">Retirar asignación</span>
+    </span>
+  </button>
+  <button id="btn-listado-colores-especialistas" class="paquete-action-btn paquete-action-btn--catalog" type="button">
+    <span class="paquete-action-btn__icon">${icon("target", "w-5 h-5")}</span>
+    <span class="paquete-action-btn__content">
+      <span class="paquete-action-btn__title">Colores y Especialistas</span>
+      <span class="paquete-action-btn__hint">Ver catálogo</span>
+    </span>
+  </button>
+  <button id="btn-listado-paquetes" class="paquete-action-btn paquete-action-btn--list" type="button">
+    <span class="paquete-action-btn__icon">${icon("list", "w-5 h-5")}</span>
+    <span class="paquete-action-btn__content">
+      <span class="paquete-action-btn__title">Listado de Paquetes</span>
+      <span class="paquete-action-btn__hint">Ver activos</span>
+    </span>
+  </button>
+  <button id="btn-listado-paquetes-archivo" class="paquete-action-btn paquete-action-btn--list" type="button">
+    <span class="paquete-action-btn__icon">${icon("archiveBox", "w-5 h-5")}</span>
+    <span class="paquete-action-btn__content">
+      <span class="paquete-action-btn__title">Paquetes para Archivo</span>
+      <span class="paquete-action-btn__hint">Tabla paquetes_archivo</span>
+    </span>
+  </button>
+  <!-- ✅ AQUÍ VA TU BOTÓN -->
+  <button id="btn-generar-rotulos" class="paquete-action-btn paquete-action-btn--print ml-2" type="button">
+    <span class="paquete-action-btn__icon">📄</span>
+    <span class="paquete-action-btn__content">
+      <span class="paquete-action-btn__title">Generar Rótulos</span>
+      <span class="paquete-action-btn__hint">Imprimir hojas</span>
+    </span>
+  </button>
+</div> <!-- CIERRE DEL TOOLBAR -->
+        
 
         <div id="gestion-tabs-workspace" class="card-surface p-4 mb-6 h-[calc(100vh-19rem)] min-h-[560px] overflow-hidden">
           <div id="tab-panel-listado" class="h-full min-h-0 overflow-hidden"></div>
           <div id="tab-panel-archivo" class="hidden h-full min-h-0 overflow-hidden"></div>
           <div id="tab-panel-asignar" class="hidden h-full min-h-0 overflow-hidden"></div>
           <div id="tab-panel-quitar" class="hidden h-full min-h-0 overflow-hidden"></div>
-          <div id="tab-panel-colores" class="hidden h-full min-h-0 overflow-hidden"></div>
+          
+          <div id="tab-panel-rotulos" class="hidden h-full min-h-0 overflow-hidden"></div>
         </div>
 
         <div id="tabla-paquetes-archivo" class="hidden">
@@ -3669,32 +4504,7 @@ function abrirModalColoresYEspecialistas(inlineMountId = "") {
       </section>
     `;
 
-    // --- EVENTOS SECCIÓN PAQUETES ARCHIVO ---
-    document.getElementById("form-buscar-exp-paquete")?.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const input = document.getElementById("input-codigo-exp-paquete");
-      const loading = document.getElementById("loading-buscar-exp");
-      const codigo = String(input?.value || "").trim();
-      if (!codigo) return;
-
-      input.disabled = true;
-      loading?.classList.remove("hidden");
-      const sugerenciaContenedor = document.getElementById("sugerencia-paquete");
-      if (sugerenciaContenedor) sugerenciaContenedor.classList.add("hidden");
-
-      try {
-        const usuario = _getUsuario();
-        const idUsuarioEspecialista = String(usuario?.id_usuario || "").trim();
-        const resSug = await sugerirPaqueteParaExpediente(codigo, idUsuarioEspecialista);
-        if (!resSug.success) throw new Error(resSug.error || "Expediente no encontrado");
-        renderSugerenciaPaquete(resSug.data, () => cargarPaquetesArchivo({ forceRefresh: true }));
-      } catch (err) {
-        showToast(err.message || "Error al buscar expediente", "error");
-      } finally {
-        input.disabled = false;
-        loading?.classList.add("hidden");
-      }
-    });
+   
 
     // Repoblar tabla de paquetes archivo con datos en caché
     document.getElementById("btn-crear-paq-archivo")?.addEventListener("click", async () => {
@@ -3734,7 +4544,10 @@ function abrirModalColoresYEspecialistas(inlineMountId = "") {
     });
 
     activarTab("listado");
-
+// Evento para generar rótulos
+document.getElementById("btn-generar-rotulos")?.addEventListener("click", () => {
+  activarTab("rotulos");
+});
     // Repoblar tabla de paquetes archivo con datos en caché
     renderTablaPaquetesArchivo(paquetesArchivo);
   };
